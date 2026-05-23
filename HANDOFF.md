@@ -2,15 +2,15 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-05-22 — diseño cerrado, sin código todavía.
+**Última actualización:** 2026-05-23 — Bloque 0.1 completado.
 
 ---
 
 ## Fase actual
 
-**Fase 0 — Setup y fundaciones** (no iniciada)
+**Fase 0 — Setup y fundaciones** (en progreso)
 
-Próximo bloque a ejecutar: **0.1 — Estructura del proyecto** (ver `docs/roadmap.md` y `docs/prompts.md`).
+Próximo bloque a ejecutar: **0.2 — Base de SQLAlchemy + Alembic + settings** (ver `docs/roadmap.md`).
 
 ---
 
@@ -27,7 +27,8 @@ Próximo bloque a ejecutar: **0.1 — Estructura del proyecto** (ver `docs/roadm
 
 ## Estado BD local
 
-- Sin BD creada todavía. Se creará en bloque 0.1 con `docker compose up -d`.
+- `docker-compose.yml` creado. Correr `docker compose up -d` para iniciar PostgreSQL 16.
+- Container: `dtcore-db`, DB: `dtcore_db`, user: `admin`, password: `admin123`, port: 5432.
 - Sin migraciones todavía. Primera migración se genera en bloque 0.3.
 
 ---
@@ -47,19 +48,34 @@ BACKUP_DRIVE_REMOTE_PATH=<configurar al desplegar>
 
 ## Arranque del entorno local
 
-Documentar al completar bloque 0.1.
+```bash
+# PostgreSQL
+docker compose up -d
+
+# Backend (en backend/)
+.venv\Scripts\activate
+pip install -r requirements.txt
+
+# Frontend (en frontend/)
+npm run dev   # → https://localhost:5173
+```
 
 ---
 
 ## Próximo paso concreto
 
-Iniciar **Fase 0, bloque 0.1 — Estructura del proyecto**. Ver prompt en `docs/prompts.md`.
+Iniciar **Fase 0, bloque 0.2 — Base de SQLAlchemy + Alembic + settings**.
 
 ---
 
 ## Historial de fases cerradas
 
-(Vacío — primer cierre será al completar Fase 0.)
+### Bloque 0.1 — Estructura del proyecto (2026-05-23)
+- Estructura `backend/` y `frontend/` creadas
+- Docker Compose con PostgreSQL 16 (`dtcore-db`)
+- Backend: `app/{api,services,models,schemas,seed,tests}/`, `requirements.txt`, `pyproject.toml` (ruff+black), venv Python
+- Frontend: Vite 5 + React 18 + TS 5.5, Tailwind 3, React Router v6, Zustand, Recharts, vite-plugin-pwa, vite-plugin-mkcert
+- Nota: Node 20.12.1 genera warnings EBADENGINE en eslint/globals; no afecta el dev server. Considerar actualizar Node a 20.19+ si genera problemas.
 
 ---
 

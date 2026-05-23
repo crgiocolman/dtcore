@@ -245,6 +245,34 @@ Mejor mostrar "Sin conexión" que corromper el stock.
 
 **Trade-off aceptado:** no se puede reconstruir el estado completo desde el log. Pero los snapshots en items + el ledger de stock cubren la trazabilidad histórica donde más importa.
 
+## Docker solo para PostgreSQL en desarrollo; full Docker en producción
+
+**Decisión:** Durante desarrollo, solo PostgreSQL corre en Docker. Backend (FastAPI) y frontend (Vite) corren localmente con venv y npm respectivamente. En el deploy al cliente (Fase 7), todo va en Docker Compose: `db`, `api`, `web` (nginx con build estático + reverse proxy).
+
+**Por qué Docker solo para BD en desarrollo:**
+
+1. **Hot reload funciona sin fricción.** `uvicorn --reload` y Vite HMR detectan cambios en milisegundos. Con backend/frontend Dockerizados hay que montar volúmenes, lidiar con permisos, y la latencia degrada la experiencia de desarrollo.
+2. **Debugging directo.** Breakpoints en VS Code atachados al proceso local funcionan sin configuración extra. Con Docker hay que configurar debugpy y mapear puertos.
+3. **Iteración rápida.** `pip install paquete` o `npm install paquete` es instantáneo. Con Docker requiere rebuild de imagen.
+4. **PostgreSQL en Docker sí tiene sentido en desarrollo:** no contamina la PC con instalación nativa, los datos persisten en un volume, se puede borrar y recrear sin afectar el host.
+
+**Por qué Docker completo en producción:**
+
+- La PC-servidor del cliente debe poder reiniciarse y levantar todo el stack con un solo comando (`docker compose up -d`).
+- Sin Docker en producción, habría que instalar Python, Node, PostgreSQL, configurar systemd services, manejar dependencias del sistema. Mucho más frágil que un compose.
+- Aislamiento: si algo se actualiza en el sistema operativo del cliente, las imágenes Docker no se ven afectadas.
+
+**Implicación para Fase 7:**
+
+- Dos archivos compose separados:
+  - `docker-compose.yml` — desarrollo, solo `db`, puerto 5432 expuesto al host
+  - `docker-compose.prod.yml` — producción, 3 servicios (`db`, `api`, `web`), sin exponer postgres al host (solo accesible internamente)
+- `Dockerfile` en `backend/` (multi-stage: build con dependencias, runtime con uvicorn)
+- `Dockerfile` en `frontend/` (multi-stage: build con npm, runtime nginx con el build estático y configuración de reverse proxy a `api:8000`)
+- `nginx.conf` con HTTPS (certificado mkcert montado como volumen) y proxy a la API
+
+**Trade-off aceptado:** durante desarrollo hay que mantener venv activado y procesos uvicorn/vite corriendo manualmente. A cambio se gana velocidad de iteración. Para un proyecto de este tamaño, vale claramente la pena.
+
 ---
 
 ## Sin tests E2E en v1
