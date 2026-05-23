@@ -13,7 +13,9 @@ Prompts concisos por bloque. Claude Code tiene contexto completo en `CLAUDE.md`,
 ## Convención
 
 Todos los prompts asumen:
+
 - Lectura previa de `CLAUDE.md`, `docs/erd.md`, `docs/roadmap.md`
+- Para cualquier bloque que toque UI: lectura previa de `docs/design-system.md`
 - Trabajo en plan mode para bloques que tocan múltiples archivos
 - No commitear automáticamente (el usuario revisa y commitea manualmente)
 - Si surge una decisión arquitectónica no resuelta, parar y consultar Claude.ai
@@ -105,6 +107,8 @@ Frontend:
 - src/lib/api.ts: cliente fetch con interceptor que agrega Authorization header
 - src/components/RequireAuth.tsx: wrapper que redirige a /login si no hay token
 
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
+
 Plan mode obligatorio.
 ```
 
@@ -119,6 +123,8 @@ Implementar bloque 0.6 siguiendo docs/roadmap.md.
 - src/features/admin/pages/Settings.tsx: placeholder (se implementa en Fase 1)
 - Tema base de Tailwind: definir paleta (primario, secundario, danger, success) en tailwind.config.js
 - Mostrar business_name desde un hook useSettings que consume GET /api/v1/settings/business_name (endpoint todavía no existe — leave un TODO o usar valor hardcodeado temporalmente y dejarlo marcado para resolver en Fase 1)
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
 ```
 
 ### Bloque 0.7 — HTTPS local y PWA básica
@@ -193,6 +199,8 @@ Implementar bloque 1.3 siguiendo docs/roadmap.md.
 - Validación cliente + manejo de errores del backend
 - Toast al guardar
 - Hook useSettings actualizado para consumir /api/v1/settings correctamente
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
 ```
 
 ### Bloque 1.4 — UI gestión de monedas
@@ -207,6 +215,8 @@ Frontend:
 - src/features/admin/pages/Currencies.tsx: lista de monedas con toggle activar/desactivar
 - Modal para cargar nuevo exchange_rate (currency + rate + effective_date)
 - Tabla de tipos de cambio históricos (read-only) por moneda
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
 ```
 
 ---
@@ -235,6 +245,8 @@ Implementar bloque 2.2 siguiendo docs/roadmap.md.
 - src/features/contacts/hooks/useContacts.ts: hook con loading/error/data
 - Botón "Nuevo contacto" → navega a /contactos/nuevo
 - Click en fila → navega a /contactos/:id
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
 ```
 
 ### Bloque 2.3 — UI formulario de contacto
@@ -247,6 +259,8 @@ Implementar bloque 2.3 siguiendo docs/roadmap.md y docs/common-patterns.md (layo
 - Validaciones: business_name requerido, formato de email, document_number requerido si document_type != none
 - Botón eliminar con modal de confirmación (solo en modo edición)
 - Usar el patrón de layout con flex flex-col h-full + form con overflow-y-auto
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
 ```
 
 ---
@@ -310,6 +324,8 @@ Implementar bloque 3.5 siguiendo docs/roadmap.md.
 - Mostrar stock actual del depósito default (consumir GET /api/v1/stock?warehouse_id=default)
 - Indicador visual rojo cuando stock <= low_stock_threshold (del producto o del setting default)
 - Botón "Nuevo producto"
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
 ```
 
 ### Bloque 3.6 — UI formulario de producto
@@ -322,6 +338,8 @@ Implementar bloque 3.6 siguiendo docs/roadmap.md y docs/common-patterns.md.
   - Sub-sección "Unidades": tabla editable inline (agregar/editar/eliminar unidades con su factor_to_base y flags default)
   - Sub-sección "Precios": tabla con precio vigente por unidad+moneda + botón "Cambiar precio" que abre modal (nuevo registro en product_prices)
 - Patrón de scroll anidado para form largo (ver docs/common-patterns.md)
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
 ```
 
 ### Bloque 3.7 — UI categorías
@@ -332,6 +350,8 @@ Implementar bloque 3.7 siguiendo docs/roadmap.md.
 - src/features/admin/pages/Categories.tsx: árbol jerárquico (componente recursivo)
 - CRUD inline: doble-click para editar nombre, botón "+" para agregar hija, botón "x" para eliminar (con confirmación)
 - Drag-and-drop para reorganizar — opcional, marcar como nice-to-have
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
 ```
 
 ---
@@ -383,6 +403,8 @@ Implementar bloque 4.3 siguiendo docs/roadmap.md.
 - Badge de estado con color (gris=draft, verde=confirmed, rojo=cancelled)
 - Click en fila → navega a detalle
 - Botón "Nueva compra"
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo. Estados: draft = text-text-secondary, confirmed = success-500, cancelled = danger-500.
 ```
 
 ### Bloque 4.4 — UI formulario de compra
@@ -396,6 +418,8 @@ Implementar bloque 4.4 siguiendo docs/roadmap.md.
   - Resumen: subtotal, IVA, total (en moneda de la compra y en PYG)
   - Botones: "Guardar como borrador", "Confirmar compra" (con modal de confirmación mostrando impacto en stock)
 - Modo edición: solo se puede editar si status=draft. Si confirmed, vista de solo lectura con botón "Cancelar compra"
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo. Columnas numéricas con tabular-nums.
 ```
 
 ### Bloque 4.5 — UI vista detalle de compra
@@ -406,6 +430,8 @@ Implementar bloque 4.5 siguiendo docs/roadmap.md.
 - Reusar PurchaseForm en modo lectura si status != draft
 - Modal "Cancelar compra" con campo de motivo obligatorio
 - Mostrar audit log de la compra (creación, confirmación, cancelación con usuario y fecha)
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .btn-danger para cancelar, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
 ```
 
 ### Bloque 4.6 — UI inventario inicial
@@ -418,6 +444,8 @@ Implementar bloque 4.6 siguiendo docs/roadmap.md.
 - Botón "Cargar inventario inicial" → para cada fila con cantidad > 0, llama a apply_movement con movement_type=initial
 - Validación: no permitir si ya hay movements para ese producto+warehouse
 - Backend: endpoint POST /api/v1/stock/initial que recibe lista de items
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo. Columnas numéricas con tabular-nums.
 ```
 
 ---
@@ -455,6 +483,8 @@ Implementar bloque 5.2 siguiendo docs/roadmap.md y CLAUDE.md (sección POS).
   - Tab order respetando CLAUDE.md
   - Indicador visual claro del campo activo (ring de Tailwind)
 - Ruta /pos accesible desde sidebar y con shortcut global (a definir)
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo. El POS usa tabular-nums en todos los totales y precios.
 ```
 
 ### Bloque 5.3 — UI POS — búsqueda y carrito
@@ -469,6 +499,8 @@ Implementar bloque 5.3 siguiendo docs/roadmap.md.
 - Enter agrega al carrito y vuelve foco a búsqueda con campo limpio
 - Carrito: lista con producto, unidad, cantidad (editable inline con flechas o input), precio unitario, subtotal, botón eliminar
 - Cálculo en vivo de totales
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.input, .label, .card), nunca hex hardcodeados ni text-white directo. Todos los precios y totales con tabular-nums.
 ```
 
 ### Bloque 5.4 — UI POS — cliente y descuentos
@@ -484,6 +516,8 @@ Implementar bloque 5.4 siguiendo docs/roadmap.md.
   - Opciones: monto o porcentaje
   - Aplicar guarda en sale_items.discount_amount/percent o sales.header_discount_*
 - Mostrar descuentos aplicados en el carrito y en el resumen
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
 ```
 
 ### Bloque 5.5 — UI POS — cobro y confirmación
@@ -501,6 +535,8 @@ Implementar bloque 5.5 siguiendo docs/roadmap.md.
 - Si éxito: mostrar confirmación visual (toast grande o pantalla intermedia con ticket resumido), limpiar carrito, foco vuelve a búsqueda
 - Si error de stock: mostrar mensaje claro indicando qué producto y cuánto falta
 - F9 cancela venta en progreso (limpia carrito tras confirmación)
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.input, .label, .card), nunca hex hardcodeados ni text-white directo. **El botón "Cobrar" usa .btn-accent — es el único lugar del sistema donde se usa cyan, ver docs/design-system.md regla 4.** Total y vuelto con tabular-nums en tamaño grande (text-3xl font-bold).
 ```
 
 ### Bloque 5.6 — UI lista de ventas
@@ -511,6 +547,8 @@ Implementar bloque 5.6 siguiendo docs/roadmap.md.
 - src/features/sales/pages/SalesList.tsx: tabla con filtros (fecha, cliente, estado, vendedor)
 - Vista detalle (modal o página) con todos los items y pagos
 - Botón "Cancelar venta" en ventas confirmadas (con motivo, modal de confirmación)
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .btn-danger para cancelar, .input, .label, .card), nunca hex hardcodeados ni text-white directo. Columnas de montos con tabular-nums.
 ```
 
 ### Bloque 5.7 — Shortcuts y accesibilidad
@@ -523,6 +561,8 @@ Implementar bloque 5.7 siguiendo docs/roadmap.md y CLAUDE.md (sección POS).
 - Sonido al confirmar venta (opcional, controlable por setting pos_play_sound_on_sale)
 - Indicador visual del campo activo (ya implementado en 5.2, revisar consistencia)
 - Tests manuales: recorrer una venta entera sin tocar el mouse
+
+Aplicar docs/design-system.md: el modal de ayuda usa bg-bg-elevated con tabla limpia mostrando shortcut + descripción. Nunca hex hardcodeados ni text-white directo.
 ```
 
 ---
@@ -550,6 +590,8 @@ Implementar bloque 6.2 siguiendo docs/roadmap.md.
   - Cabecera: depósito, fecha, motivo (select)
   - Items: producto, unidad, cantidad (puede ser positiva o negativa), costo si es ingreso
   - Estados draft/confirmed/cancelled
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo. Columnas numéricas con tabular-nums.
 ```
 
 ### Bloque 6.3 — Backend reportes
@@ -582,6 +624,8 @@ Implementar bloque 6.4 siguiendo docs/roadmap.md.
   - Card con valor total del inventario
 - Componente reutilizable MetricCard
 - Hook useDashboard que consume varios endpoints en paralelo
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clase .card para las métricas, nunca hex hardcodeados ni text-white directo. Todos los montos con tabular-nums. Recharts: configurar colores con los tokens primary-500, success-500, warning-500, danger-500 (no usar paleta default de Recharts). Stock bajo mostrado con warning-500, no danger.
 ```
 
 ### Bloque 6.5 — UI página de reportes
@@ -597,6 +641,8 @@ Implementar bloque 6.5 siguiendo docs/roadmap.md.
   - "Valor de inventario" (tabla)
 - Cada reporte: selector de fechas + botón "Exportar CSV"
 - Decisión a tomar durante implementación: exportación CSV implementada o se difiere
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo. Todas las columnas numéricas con tabular-nums. Recharts con colores del sistema.
 ```
 
 ---
@@ -636,7 +682,65 @@ Frontend:
 - Mensajes traducidos al español
 ```
 
-### Bloque 7.3 — Documentación de deployment
+### Bloque 7.3 — Sidebar colapsable
+
+```
+Implementar bloque 7.3 siguiendo docs/roadmap.md.
+
+- Modificar src/components/AppLayout.tsx y Sidebar.tsx para soportar tres estados: expanded, collapsed, hidden
+- Botón en header (icono PanelLeft de Lucide) para ciclar entre los tres estados
+- Store Zustand en src/lib/uiStore.ts (o similar) con el estado actual del sidebar
+- Persistencia en localStorage con key 'dtcore_sidebar_state'
+- Estados visuales:
+  - expanded: ~200px, iconos + texto (estado default)
+  - collapsed: ~60px, solo iconos, tooltip al hover con el nombre del módulo
+  - hidden: 0px, sidebar fuera de pantalla
+- Transición suave: transition-all duration-200
+- En POS (/pos) el sidebar ya está oculto por diseño (bloque 5.2) — verificar que el toggle no aplica ahí
+
+Aplicar docs/design-system.md: tooltip usa bg-bg-elevated, transición suave consistente con el resto del sistema.
+```
+
+### Bloque 7.4 — Responsive básico para vista mobile
+
+```
+Implementar bloque 7.4 siguiendo docs/roadmap.md.
+
+OBJETIVO: el cliente puede consultar reportes desde el celular cuando está fuera del local. NO optimizar para operar el sistema desde móvil (eso es v2).
+
+CAMBIOS PRINCIPALES:
+
+1. Breakpoint principal: md (768px). En < md aplicar:
+   - Sidebar se convierte en drawer (menú hamburguesa) que se abre desde la izquierda con overlay
+   - Header muestra botón hamburguesa (icono Menu de Lucide) en lugar de botón de toggle
+   - Click fuera del drawer lo cierra
+
+2. Páginas a optimizar para mobile:
+   - Home (Dashboard): cards apiladas verticalmente (grid-cols-1 en < md), gráficos full-width
+   - Reportes: tabs scrollables horizontalmente si no entran, filtros colapsables en accordion
+   - Ventas (lista): tabla con scroll horizontal, columnas críticas visibles primero (fecha, cliente, total)
+   - Compras (lista): igual que ventas
+   - Login: ya debería verse bien, verificar
+
+3. Páginas que NO se rediseñan para mobile en v1 (se ven en zoom de escritorio, documentar limitación):
+   - POS
+   - Formularios de compra/venta
+   - Formularios de productos
+   - Ajustes de stock
+   - Panel admin de settings
+
+4. Actualizar README del cliente con la sección "Uso desde celular":
+   - Recomendado: solo consulta de reportes y dashboard
+   - Para operación: usar PC o notebook
+
+5. Tests manuales:
+   - Verificar en Chrome DevTools (modo mobile, iPhone 12 / Pixel 5)
+   - Verificar en celular real del desarrollador conectado a la red local
+
+Aplicar docs/design-system.md: el drawer usa bg-bg-surface con sombra, overlay con bg-bg-base/80 (80% opacidad). Nunca hex hardcodeados ni text-white directo.
+```
+
+### Bloque 7.5 — Documentación de deployment
 
 ```
 Crear docs/deployment.md con guía completa de instalación en una PC nueva.
@@ -653,7 +757,7 @@ Incluir:
 - Checklist de smoke test post-instalación
 ```
 
-### Bloque 7.4 — Datos iniciales del cliente
+### Bloque 7.6 — Datos iniciales del cliente
 
 ```
 Coordinar con el cliente carga inicial:
@@ -665,7 +769,7 @@ Coordinar con el cliente carga inicial:
 Crear script de importación CSV en scripts/import_initial_data.py para productos en bulk si el cliente provee Excel/CSV.
 ```
 
-### Bloque 7.5 — Capacitación
+### Bloque 7.7 — Capacitación
 
 ```
 No es un bloque de código. Preparar materiales:
@@ -674,7 +778,7 @@ No es un bloque de código. Preparar materiales:
 - Sesión presencial: instalación de PWA, importación de certificado, primer login, primera venta de prueba
 ```
 
-### Bloque 7.6 — Período de acompañamiento
+### Bloque 7.8 — Período de acompañamiento
 
 ```
 No es un bloque de código. Mantener:
@@ -689,6 +793,7 @@ No es un bloque de código. Mantener:
 ## Nota sobre flexibilidad
 
 Los prompts son guías, no contratos. Si durante un bloque Claude Code (o el desarrollador) detecta:
+
 - Una decisión arquitectónica no resuelta → parar, volver a Claude.ai
 - Un bloque más grande de lo esperado → partir en sub-bloques sobre la marcha
 - Una dependencia faltante con otro bloque → resolver antes de continuar

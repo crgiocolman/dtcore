@@ -8,3 +8,5 @@ node_modules/
 dist/
 storage/
 *.pem
+backups/
+scripts/logs/*.log

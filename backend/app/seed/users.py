@@ -35,6 +35,10 @@ async def seed_users() -> None:
             )
             .on_conflict_do_nothing()
         )
-        await session.execute(stmt)
+        result = await session.execute(stmt)
         await session.commit()
-    logger.info("seed_users: usuario admin procesado")
+
+    if result.rowcount == 0:
+        print("seed_users: usuario admin ya existe — contraseña NO fue modificada.")
+    else:
+        print("seed_users: usuario admin creado.")

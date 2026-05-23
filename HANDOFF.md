@@ -2,7 +2,7 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-05-23 — Bloque 0.4 completado.
+**Última actualización:** 2026-05-23 — Bloque 0.6 completado.
 
 ---
 
@@ -10,7 +10,7 @@ Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de 
 
 **Fase 0 — Setup y fundaciones** (en progreso)
 
-Próximo bloque a ejecutar: **0.5 — Auth (backend + frontend)** (ver `docs/roadmap.md`).
+Próximo bloque a ejecutar: **0.7 — HTTPS local y PWA básica** (ver `docs/roadmap.md`).
 
 ---
 
@@ -65,14 +65,40 @@ npm run dev   # → https://localhost:5173
 
 ## Próximo paso concreto
 
-Iniciar **Fase 0, bloque 0.5 — Auth (backend + frontend)**.
-
-- Backend: `/auth/login`, `/auth/me`, JWT (python-jose), bcrypt, decoradores `require_auth` y `require_role`
-- Frontend: store Zustand de auth, hook `useAuth`, página `/login`, redirect si no hay token
+Iniciar **Fase 0, bloque 0.6 — Layout y navegación**.
 
 ---
 
 ## Historial de fases cerradas
+
+### Bloque 0.6 — Layout y navegación (2026-05-23)
+
+- `tailwind.config.js`: paleta extendida — `primary` (blue), `secondary` (slate), `danger` (red), `success` (green)
+- `frontend/src/components/AppLayout.tsx`: header full-width (logo DTCore + business_name + usuario + logout) + sidebar fijo + `<Outlet />` para rutas anidadas
+- `frontend/src/components/Sidebar.tsx`: NavLink activo resaltado con `bg-primary-50 text-primary-700`; links: Inicio, POS, Ventas, Compras, Productos, Contactos, Inventario, Reportes, Admin
+- `frontend/src/components/Placeholder.tsx`: componente genérico "En construcción" reutilizado por todas las rutas placeholder
+- `frontend/src/features/settings/hooks/useSettings.ts`: retorna `businessName: 'DTCore'` hardcodeado — TODO Fase 1 bloque 1.2 cuando exista `GET /api/v1/settings/business_name`
+- `frontend/src/features/admin/pages/Settings.tsx`: placeholder de configuración (implementación en Fase 1)
+- `frontend/src/App.tsx`: React Router v6 con layout route pathless — `RequireAuth` wrapping `AppLayout` como padre de todas las rutas protegidas; rutas: `/`, `/pos`, `/ventas`, `/compras`, `/productos`, `/contactos`, `/inventario`, `/reportes`, `/admin/settings`
+
+### Bloque 0.5 — Auth backend + frontend (2026-05-23)
+
+- `backend/main.py`: FastAPI app con CORS (localhost:5173)
+- `app/schemas/auth.py`: `LoginRequest`, `UserOut`, `TokenResponse`
+- `app/services/auth_service.py`: `hash_password`, `verify_password`, `create_access_token`, `decode_token`, `authenticate_user`
+- `app/api/deps.py`: `get_current_user` (valida JWT del header `Authorization`), `require_role(*roles)`
+- `app/api/auth.py`: `POST /api/v1/auth/login`, `GET /me`, `POST /logout`
+- `frontend/src/lib/api.ts`: `apiFetch<T>` con header automático + manejo de 401
+- `frontend/src/features/auth/store.ts`: Zustand store con persistencia en localStorage (`dtcore_token`, `dtcore_user`)
+- `frontend/src/features/auth/hooks/useAuth.ts`: hook que hidrata desde storage en primer render
+- `frontend/src/features/auth/pages/Login.tsx`: formulario usuario/contraseña con manejo de error
+- `frontend/src/components/RequireAuth.tsx`: redirect a `/login` si no autenticado
+- `frontend/src/App.tsx`: React Router v6 con rutas pública (`/login`) y protegida (`/`)
+- `frontend/vite.config.ts`: proxy `/api → http://localhost:8000`
+- `backend/.env`: `SEED_ADMIN_PASSWORD=admin123` agregado para dev
+- Nota: seed es idempotente (`ON CONFLICT DO NOTHING`); contraseña admin en dev es `admin123`
+
+
 
 ### Bloque 0.4 — Seeds iniciales (2026-05-23)
 

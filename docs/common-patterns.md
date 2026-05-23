@@ -310,6 +310,60 @@ Para reemplazar el input de archivo nativo con un botón custom, usar `hidden` (
 
 ---
 
+## Sistema visual
+
+### Filosofía
+Dark mode profundo como default en v1. Fondos azulados (no grises). Tokens semánticos via CSS variables en `index.css` → habilitar light mode en v2 reemplazando solo `:root` sin tocar componentes. Tipografía Inter.
+
+### Cuándo usar cada botón
+
+| Clase | Cuándo |
+|---|---|
+| `.btn-primary` | Acciones generales: Guardar, Confirmar, Agregar |
+| `.btn-accent` | **SOLO** la acción de Cobrar en el POS. Un único `.btn-accent` por pantalla. |
+| `.btn-secondary` | Acciones secundarias: Cancelar, Volver, Ver detalle |
+| `.btn-danger` | Acciones destructivas: Eliminar, Cancelar venta/compra |
+| `.btn-ghost` | Iconos en barras de herramientas, acciones muy sutiles |
+
+### Cuándo usar cada color semántico
+
+| Color | Cuándo |
+|---|---|
+| `success-*` | Confirmaciones de operación exitosa, indicador de stock OK |
+| `warning-*` | Stock bajo, advertencias no críticas, alertas informativas |
+| `danger-*` | Errores de validación, acciones destructivas, stock agotado |
+| `info-*` / `accent-*` | Información neutral, destacar sin alarmar |
+
+### Tokens de fondo — nunca usar `bg-white`, `bg-gray-*`, `bg-slate-*`
+
+| Token | Uso |
+|---|---|
+| `bg-bg-base` | Fondo de página (más oscuro, el "suelo") |
+| `bg-bg-surface` | Cards, sidebar, header, modales |
+| `bg-bg-elevated` | Dropdowns, tooltips, hover sobre surface |
+| `bg-bg-input` | Campos de formulario (`.input` lo aplica automático) |
+
+### Tokens de texto — nunca usar `text-white`, `text-gray-*`, `text-slate-*`
+
+| Token | Uso |
+|---|---|
+| `text-text-primary` | Texto principal, títulos, contenido importante |
+| `text-text-secondary` | Labels de formulario, texto secundario |
+| `text-text-muted` | Placeholders, metadatos, texto de ayuda |
+
+### Tokens de borde
+
+| Token | Uso |
+|---|---|
+| `border-border-subtle` | Divisores internos, sidebar, header |
+| `border-border` | Inputs, cards, separadores con más peso |
+| `border-border-focus` | Anillo de foco activo (`.input` lo aplica automático) |
+
+### Números tabulares
+En tablas de montos, precios o cantidades: clase `tabular-nums` en el contenedor, o `td.numeric` en celdas individuales. El `.input` de tipo `number` ya aplica `font-variant-numeric: tabular-nums` automáticamente.
+
+---
+
 ## Cómo agregar nuevos patrones
 
 Cuando un patrón aparece 2+ veces en código, documentarlo acá. Formato:

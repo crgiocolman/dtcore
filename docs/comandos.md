@@ -131,6 +131,52 @@ Referencia rápida de comandos. Se completa a medida que el proyecto avanza.
 
 ---
 
+## HTTPS local con mkcert — instalar CA root en Android
+
+Para que el service worker de la PWA se registre en el celular del cliente, el dispositivo tiene que confiar en el certificado local generado por mkcert. Sin este paso, el SW no instala y la app no aparece como "instalable".
+
+### En la PC-servidor (una sola vez)
+
+```bash
+# Encontrar dónde mkcert guardó su CA root
+mkcert -CAROOT
+# → típicamente: /home/<usuario>/.local/share/mkcert/ (Linux)
+#              o  C:\Users\<usuario>\AppData\Local\mkcert\ (Windows)
+
+# El archivo que hay que copiar al celular es rootCA.pem
+```
+
+### En el celular Android
+
+1. **Transferir el archivo `rootCA.pem` al celular** — por cable, WhatsApp, o servidor temporal:
+   ```bash
+   # Desde la PC: levantar servidor HTTP temporal (solo para la transferencia)
+   cd $(mkcert -CAROOT) && python -m http.server 8080
+   # En el celular: abrir http://<ip-pc>:8080/rootCA.pem y descargar
+   ```
+
+2. **Instalar el certificado en Android:**
+   - Ir a `Ajustes → Seguridad → Más ajustes de seguridad → Instalar desde almacenamiento`
+   - (En Android 14+: `Ajustes → Seguridad → Credenciales y certificados → Instalar certificado → Certificado de CA`)
+   - Seleccionar el archivo `rootCA.pem` descargado
+   - El sistema pedirá PIN/patrón para confirmar
+   - Nombre sugerido: "DTCore Local CA"
+
+3. **Verificar:**
+   - Abrir Chrome en el celular
+   - Ir a `https://<ip-de-la-pc>/`
+   - No debería aparecer advertencia de certificado
+   - Chrome mostrará el botón "Instalar app" o "Agregar a pantalla de inicio" (⋮ → Instalar app)
+
+### Notas
+
+- `mkcert` genera los certs en `vite-plugin-mkcert` automáticamente al correr `npm run dev`. Los certs quedan en `frontend/.vite-plugin-mkcert/`.
+- Este procedimiento es **por dispositivo**. Si el cliente tiene varios celulares o notebooks, repetirlo en cada uno.
+- El certificado de CA expira según la configuración de mkcert (por defecto: 10 años), no es necesario renovarlo frecuentemente.
+- En iOS: descargar el `.pem` → `Ajustes → General → VPN y administración de dispositivos → Instalar perfil` → luego activarlo en `Ajustes → General → Info → Configuración de confianza de certificado`.
+
+---
+
 ## Flujo típico al iniciar el día
 
 ```bash

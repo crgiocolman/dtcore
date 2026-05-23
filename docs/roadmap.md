@@ -335,24 +335,41 @@ Fases organizadas verticalmente por módulo end-to-end (backend + frontend junto
   - Frontend: manejo de errores de red, mensajes claros al usuario
   - Logs estructurados en backend (level INFO en producción)
 
-- **7.3 — Documentación de deployment**
+  - **7.3 — Sidebar colapsable**
+  - Tres estados: expandido (~200px, default en escritorio), colapsado (~60px solo iconos), oculto
+  - Botón en header para ciclar entre estados
+  - Persistencia en `localStorage` de la preferencia del usuario
+  - En POS (`/pos`) el sidebar está oculto automáticamente (ya cubierto en bloque 5.2)
+  - Transición suave (200ms)
+
+- **7.4 — Responsive básico para vista en celular**
+  - Objetivo: el cliente puede consultar **reportes** desde el celular (fuera del local, en su WiFi). No optimizar para operar el sistema desde móvil
+  - Breakpoint principal: `md` (768px)
+  - En `< md`: sidebar se convierte en menú hamburguesa (drawer que se abre desde la izquierda)
+  - Tablas con scroll horizontal cuando no caben
+  - Dashboard (Home): cards apiladas verticalmente, gráficos full-width
+  - Reportes: tabs scrollables, filtros colapsables
+  - **POS, formularios de compra/venta, ajustes y catálogo NO se rediseñan para móvil en v1** — si se acceden desde celular, se ven en zoom de escritorio. Operación móvil real es v2.
+  - Documentar la limitación en el README del cliente
+
+- **7.5 — Documentación de deployment**
   - Documento `docs/deployment.md` con pasos para desplegar DTCore en una PC nueva
   - Script de instalación inicial (asume Ubuntu/Debian o documenta Windows con WSL)
   - Configuración de `rclone` paso a paso
   - Configuración de cron para backups y verificación
 
-- **7.4 — Datos iniciales del cliente**
+- **7.6 — Datos iniciales del cliente**
   - Cargar productos reales de Rincón de Embalajes (con cliente o pidiéndoselos)
   - Cargar proveedores habituales
   - Inventario inicial real
 
-- **7.5 — Capacitación**
+- **7.7 — Capacitación**
   - Sesión con el cliente para uso del POS
   - Documento corto de "atajos y trucos" impreso para tener a mano
   - Configuración de PWA instalada en sus dispositivos
   - Importación del certificado mkcert en celular y notebook del cliente
 
-- **7.6 — Período de acompañamiento**
+- **7.8 — Período de acompañamiento**
   - 3 meses de soporte según contrato
   - Backlog de mejoras detectadas en uso real → entran a v2
 
@@ -372,7 +389,7 @@ Funcionalidades difereidas explícitamente del MVP. Se cotizan y priorizan segú
 - **Roles y permisos:** UI de gestión de usuarios, restricciones por rol
 - **Cuentas corrientes:** clientes y proveedores con saldo, pagos a cuenta
 - **Acceso desde fuera de la LAN:** Tailscale o deploy a nube (Railway/Hetzner)
-- **Tests E2E (Playwright):** automatizar los 5-10 flujos críticos
+- **Mobile-first para operación:** POS rediseñado para touch, formularios optimizados para celular, bottom navigation. Permite que el cliente registre ventas desde celular sin compromiso de UX.
 
 ---
 
