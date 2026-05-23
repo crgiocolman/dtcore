@@ -2,7 +2,7 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-05-23 — Bloque 0.3 completado.
+**Última actualización:** 2026-05-23 — Bloque 0.4 completado.
 
 ---
 
@@ -10,7 +10,7 @@ Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de 
 
 **Fase 0 — Setup y fundaciones** (en progreso)
 
-Próximo bloque a ejecutar: **0.4 — Seeds iniciales** (ver `docs/roadmap.md`).
+Próximo bloque a ejecutar: **0.5 — Auth (backend + frontend)** (ver `docs/roadmap.md`).
 
 ---
 
@@ -65,14 +65,24 @@ npm run dev   # → https://localhost:5173
 
 ## Próximo paso concreto
 
-Iniciar **Fase 0, bloque 0.4 — Seeds iniciales**.
+Iniciar **Fase 0, bloque 0.5 — Auth (backend + frontend)**.
 
-- Script `python -m app.seed.run`
-- Datos: usuario admin (password en .env), currencies (PYG/USD/BRL/ARS), warehouse "Depósito principal" (is_default=True), settings con todos los keys del ERD
+- Backend: `/auth/login`, `/auth/me`, JWT (python-jose), bcrypt, decoradores `require_auth` y `require_role`
+- Frontend: store Zustand de auth, hook `useAuth`, página `/login`, redirect si no hay token
 
 ---
 
 ## Historial de fases cerradas
+
+### Bloque 0.4 — Seeds iniciales (2026-05-23)
+
+- `app/seed/currencies.py`: PYG, USD, BRL, ARS
+- `app/seed/users.py`: admin con UUID fijo `00000000-0000-4000-8000-000000000001`; password vía `SEED_ADMIN_PASSWORD` env var o `getpass`
+- `app/seed/warehouses.py`: "Depósito principal" con UUID fijo `00000000-0000-4000-8000-000000000002`, `is_default=true`
+- `app/seed/settings.py`: 8 keys del ERD sección 1.2; `default_warehouse_id` apunta al UUID fijo del depósito
+- `app/seed/run.py`: punto de entrada `python -m app.seed.run` (requiere `SEED_ADMIN_PASSWORD` en env o prompt)
+- Todos idempotentes con `INSERT ... ON CONFLICT DO NOTHING`
+- Verificado: primera y segunda ejecución limpias sin duplicados
 
 ### Bloque 0.3 — Schema completo (migración inicial) (2026-05-23)
 
