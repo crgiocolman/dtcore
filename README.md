@@ -1,0 +1,1 @@
+DTCore es un sistema base de gestión de compra/venta/inventario para pequeños negocios. Producto reutilizable: el código es el mismo entre instalaciones, la configuración por cliente vive en `.env` y en la tabla `settings`.
