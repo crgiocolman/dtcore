@@ -2,7 +2,7 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-05-23 — Bloque 0.1 completado.
+**Última actualización:** 2026-05-23 — Bloque 0.3 completado.
 
 ---
 
@@ -10,7 +10,7 @@ Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de 
 
 **Fase 0 — Setup y fundaciones** (en progreso)
 
-Próximo bloque a ejecutar: **0.2 — Base de SQLAlchemy + Alembic + settings** (ver `docs/roadmap.md`).
+Próximo bloque a ejecutar: **0.4 — Seeds iniciales** (ver `docs/roadmap.md`).
 
 ---
 
@@ -21,7 +21,8 @@ Próximo bloque a ejecutar: **0.2 — Base de SQLAlchemy + Alembic + settings** 
 - ✅ Reglas de proyecto (`CLAUDE.md`)
 - ✅ Roadmap por fases (`docs/roadmap.md`)
 - ✅ Prompts por bloque (`docs/prompts.md`)
-- ⏳ Sin código todavía
+- ✅ Base de SQLAlchemy + Alembic configurada (`app/database.py`, `app/config.py`, `app/models/mixins.py`, `app/enums.py`, Alembic async)
+- ✅ Schema completo en BD — 20 tablas, 14 enums, migración `db0d114b5777` verificada (upgrade + downgrade + upgrade limpios)
 
 ---
 
@@ -64,11 +65,34 @@ npm run dev   # → https://localhost:5173
 
 ## Próximo paso concreto
 
-Iniciar **Fase 0, bloque 0.2 — Base de SQLAlchemy + Alembic + settings**.
+Iniciar **Fase 0, bloque 0.4 — Seeds iniciales**.
+
+- Script `python -m app.seed.run`
+- Datos: usuario admin (password en .env), currencies (PYG/USD/BRL/ARS), warehouse "Depósito principal" (is_default=True), settings con todos los keys del ERD
 
 ---
 
 ## Historial de fases cerradas
+
+### Bloque 0.3 — Schema completo (migración inicial) (2026-05-23)
+
+- 14 enums Python en `app/enums.py`
+- 20 tablas en 9 archivos de modelo (`app/models/`): users, settings, currencies, contacts, products, inventory, purchases, sales, audit
+- Todos los FKs, unique constraints, check constraints e índices con nombres explícitos
+- Partial indexes (barcode, document_number, uq_warehouses_one_default) correctos en migración
+- Migración `db0d114b5777_initial_schema.py` generada con autogenerate + DROP TYPE agregados manualmente en downgrade
+- Verificación: `upgrade head` → `downgrade base` → `upgrade head` limpios
+- La BD queda en `head` (migración aplicada)
+
+### Bloque 0.2 — Base de SQLAlchemy + Alembic + settings (2026-05-23)
+
+- `app/config.py`: pydantic-settings con DATABASE_URL, JWT_SECRET, JWT_EXPIRES_HOURS (default 8), STORAGE_PATH, BACKUP_DRIVE_REMOTE_PATH
+- `app/database.py`: `Base` declarativa, engine async (asyncpg), `AsyncSessionLocal`, `get_db()` dependency
+- `app/models/mixins.py`: `TimestampMixin`, `SoftDeleteMixin`, `AuditUserMixin` (con `declared_attr` y FK names explícitos)
+- `app/enums.py`: archivo listo para importar enums en bloque 0.3
+- Alembic: `alembic.ini` + `alembic/env.py` configurado para async (`asyncio.run` + `async_engine_from_config`). DATABASE_URL se lee de `settings`, no de alembic.ini.
+- `.env.example` en raíz del repo con instrucción de copiar a `backend/.env`
+- Nota: para correr `alembic` hay que estar en `backend/` con el venv activado
 
 ### Bloque 0.1 — Estructura del proyecto (2026-05-23)
 
@@ -106,6 +130,7 @@ Iniciar **Fase 0, bloque 0.2 — Base de SQLAlchemy + Alembic + settings**.
 
 ## Cómo obtener la ip del contenedor de la BD de docker
 
+docker network connect bridge dtcore-db
 docker inspect dtcore-db | Select-String '"IPAddress"'
 
 ---
