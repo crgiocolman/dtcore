@@ -71,6 +71,7 @@ Iniciar **Fase 0, bloque 0.2 — Base de SQLAlchemy + Alembic + settings**.
 ## Historial de fases cerradas
 
 ### Bloque 0.1 — Estructura del proyecto (2026-05-23)
+
 - Estructura `backend/` y `frontend/` creadas
 - Docker Compose con PostgreSQL 16 (`dtcore-db`)
 - Backend: `app/{api,services,models,schemas,seed,tests}/`, `requirements.txt`, `pyproject.toml` (ruff+black), venv Python
@@ -81,16 +82,16 @@ Iniciar **Fase 0, bloque 0.2 — Base de SQLAlchemy + Alembic + settings**.
 
 ## Documentación del proyecto
 
-| Archivo                          | Para qué                            | Frecuencia de cambio |
-| -------------------------------- | ----------------------------------- | -------------------- |
-| `CLAUDE.md`                      | Reglas activas del proyecto         | Bajo                 |
-| `HANDOFF.md` (este)              | Estado operativo actual             | Alto                 |
-| `docs/erd.md`                    | Modelo de datos detallado           | Bajo                 |
-| `docs/roadmap.md`                | Fases y bloques                     | Bajo                 |
-| `docs/prompts.md`                | Prompts por bloque para Claude Code | Bajo                 |
-| `docs/design-decisions.md`       | Historial de por qué                | Bajo                 |
-| `docs/common-patterns.md`        | Patrones de código                  | Medio                |
-| `docs/comandos.md`               | Referencia de comandos              | Bajo                 |
+| Archivo                    | Para qué                            | Frecuencia de cambio |
+| -------------------------- | ----------------------------------- | -------------------- |
+| `CLAUDE.md`                | Reglas activas del proyecto         | Bajo                 |
+| `HANDOFF.md` (este)        | Estado operativo actual             | Alto                 |
+| `docs/erd.md`              | Modelo de datos detallado           | Bajo                 |
+| `docs/roadmap.md`          | Fases y bloques                     | Bajo                 |
+| `docs/prompts.md`          | Prompts por bloque para Claude Code | Bajo                 |
+| `docs/design-decisions.md` | Historial de por qué                | Bajo                 |
+| `docs/common-patterns.md`  | Patrones de código                  | Medio                |
+| `docs/comandos.md`         | Referencia de comandos              | Bajo                 |
 
 ---
 
@@ -103,9 +104,16 @@ Iniciar **Fase 0, bloque 0.2 — Base de SQLAlchemy + Alembic + settings**.
 
 ---
 
+## Cómo obtener la ip del contenedor de la BD de docker
+
+docker inspect dtcore-db | Select-String '"IPAddress"'
+
+---
+
 ## Cómo actualizar este archivo
 
 Al cerrar un bloque o fase:
+
 1. Mover el bloque/fase de "actual" a "cerrado" con fecha
 2. Actualizar "Próximo paso concreto" al siguiente bloque
 3. Agregar notas relevantes (decisiones que surgieron, fixes notables, deuda técnica)
