@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { Placeholder } from './components/Placeholder'
 import { RequireAuth } from './components/RequireAuth'
+import { Currencies } from './features/admin/pages/Currencies'
 import { Settings } from './features/admin/pages/Settings'
 import { Login } from './features/auth/pages/Login'
 import { useAuthStore } from './features/auth/store'
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="inventario" element={<Placeholder title="Inventario" />} />
           <Route path="reportes" element={<Placeholder title="Reportes" />} />
           <Route path="admin/settings" element={<Settings />} />
+          <Route path="admin/currencies" element={<Currencies />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

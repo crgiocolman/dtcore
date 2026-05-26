@@ -20,9 +20,10 @@ interface AuthState {
   token: string | null
   user: AuthUser | null
   isAuthenticated: boolean
+  isLoading: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => void
-  initFromStorage: () => void
+  initFromStorage: () => Promise<void>
 }
 
 const TOKEN_KEY = 'dtcore_token'
@@ -32,18 +33,31 @@ export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   user: null,
   isAuthenticated: false,
+  isLoading: true,
 
-  initFromStorage: () => {
+  initFromStorage: async () => {
     const token = localStorage.getItem(TOKEN_KEY)
-    const userRaw = localStorage.getItem(USER_KEY)
-    if (token && userRaw) {
-      try {
-        const user: AuthUser = JSON.parse(userRaw)
-        set({ token, user, isAuthenticated: true })
-      } catch {
+    if (!token) {
+      set({ isLoading: false })
+      return
+    }
+    try {
+      const res = await fetch('/api/v1/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const user: AuthUser = await res.json()
+        localStorage.setItem(USER_KEY, JSON.stringify(user))
+        set({ token, user, isAuthenticated: true, isLoading: false })
+      } else {
         localStorage.removeItem(TOKEN_KEY)
         localStorage.removeItem(USER_KEY)
+        set({ token: null, user: null, isAuthenticated: false, isLoading: false })
       }
+    } catch {
+      localStorage.removeItem(TOKEN_KEY)
+      localStorage.removeItem(USER_KEY)
+      set({ token: null, user: null, isAuthenticated: false, isLoading: false })
     }
   },
 

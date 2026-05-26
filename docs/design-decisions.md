@@ -287,6 +287,23 @@ Los tests unitarios del backend, en cambio, valen oro: lock pesimista, CPP, tran
 
 ---
 
+## Tasas de cambio editables solo si son la última y no usadas
+
+**Decisión:** Las tasas de cambio (`exchange_rates`) siguen siendo append-only en concepto, pero se permite editar o eliminar la tasa más reciente de una moneda mientras no haya ninguna compra/venta que la haya consumido.
+
+**Por qué:** Los tipos de cambio se cargan manualmente y los errores de tipeo son inevitables. Forzar al usuario a cargar una nueva tasa con fecha posterior cuando se equivocó hace 30 segundos genera ruido en el histórico. Pero permitir editar tasas viejas que ya fueron usadas crearía inconsistencias silenciosas con los snapshots de `exchange_rate` ya guardados en compras y ventas.
+
+**Reglas concretas:**
+
+- Editar/eliminar permitido solo si: (a) es la tasa con `effective_date` máximo para esa moneda Y (b) no existe ninguna `purchase` ni `sale` con esa moneda creada después del `created_at` de la tasa.
+- Si alguna condición falla → 409 Conflict con mensaje claro.
+- Al editar, solo se modifican `rate_to_base` y `notes`. `effective_date` y `currency_code` son inmutables.
+- Eliminación es soft delete (mantener `deleted_at`) por consistencia con el resto del sistema.
+
+**Trade-off aceptado:** un usuario malicioso con acceso al panel podría cargar una compra, después editar la tasa antes que cargue ninguna otra. Es un riesgo mínimo porque la compra ya tiene snapshot, pero conviene log en `audit_log` cada edición/eliminación de tasa para trazabilidad.
+
+---
+
 ## Cómo agregar nuevas decisiones
 
 Cuando se tome una decisión que merezca ir a `CLAUDE.md` como regla, agregarla acá con su razonamiento:

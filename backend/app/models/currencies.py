@@ -1,11 +1,11 @@
-from sqlalchemy import Column, Date, ForeignKey, Index, Numeric, SmallInteger, String, Text, UniqueConstraint
+from sqlalchemy import Column, Date, ForeignKey, Index, Numeric, SmallInteger, String, Text, text
 from sqlalchemy import Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy import DateTime
 
 from app.database import Base
-from app.models.mixins import TimestampMixin
+from app.models.mixins import SoftDeleteMixin, TimestampMixin
 
 
 class Currency(TimestampMixin, Base):
@@ -18,7 +18,7 @@ class Currency(TimestampMixin, Base):
     is_active = Column(Boolean, nullable=False, default=True, server_default="true")
 
 
-class ExchangeRate(Base):
+class ExchangeRate(SoftDeleteMixin, Base):
     __tablename__ = "exchange_rates"
 
     id = Column(UUID(as_uuid=True), primary_key=True)
@@ -38,6 +38,12 @@ class ExchangeRate(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("currency_code", "effective_date", name="uq_exchange_rates_currency_date"),
+        Index(
+            "uq_exchange_rates_currency_date",
+            "currency_code",
+            "effective_date",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
         Index("ix_exchange_rates_lookup", "currency_code", "effective_date"),
     )

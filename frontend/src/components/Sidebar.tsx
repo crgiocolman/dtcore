@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, Home, Package, Receipt, Settings, ShoppingCart, Truck, Users } from 'lucide-react'
+import { BarChart3, Boxes, Coins, Home, Package, Receipt, Settings, ShoppingCart, Truck, Users } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 const NAV_ITEMS = [
@@ -10,7 +10,8 @@ const NAV_ITEMS = [
   { label: 'Contactos', to: '/contactos', end: false, Icon: Users },
   { label: 'Inventario', to: '/inventario', end: false, Icon: Boxes },
   { label: 'Reportes', to: '/reportes', end: false, Icon: BarChart3 },
-  { label: 'Admin', to: '/admin/settings', end: false, Icon: Settings },
+  { label: 'Configuración', to: '/admin/settings', end: false, Icon: Settings },
+  { label: 'Monedas', to: '/admin/currencies', end: false, Icon: Coins },
 ]
 
 export function Sidebar() {

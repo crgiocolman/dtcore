@@ -2,15 +2,15 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-05-23 — Bloque 0.6 completado.
+**Última actualización:** 2026-05-25 — Fase 1 cerrada. Próximo: Fase 2, Bloque 2.1.
 
 ---
 
 ## Fase actual
 
-**Fase 0 — Setup y fundaciones** (en progreso)
+**Fase 2 — Contactos** (no iniciada)
 
-Próximo bloque a ejecutar: **0.7 — HTTPS local y PWA básica** (ver `docs/roadmap.md`).
+Próximo bloque a ejecutar: **2.1 — Backend contactos** (ver `docs/roadmap.md`).
 
 ---
 
@@ -21,22 +21,26 @@ Próximo bloque a ejecutar: **0.7 — HTTPS local y PWA básica** (ver `docs/roa
 - ✅ Reglas de proyecto (`CLAUDE.md`)
 - ✅ Roadmap por fases (`docs/roadmap.md`)
 - ✅ Prompts por bloque (`docs/prompts.md`)
-- ✅ Base de SQLAlchemy + Alembic configurada (`app/database.py`, `app/config.py`, `app/models/mixins.py`, `app/enums.py`, Alembic async)
-- ✅ Schema completo en BD — 20 tablas, 14 enums, migración `db0d114b5777` verificada (upgrade + downgrade + upgrade limpios)
+- ✅ Sistema visual documentado (`docs/design-system.md`, `docs/common-patterns.md`)
+- ✅ Base de SQLAlchemy + Alembic configurada
+- ✅ Schema completo en BD — 20 tablas, 14 enums, migración `db0d114b5777` verificada
+- ✅ Seeds iniciales: admin, currencies, warehouse, settings
+- ✅ Auth JWT funcional (backend + frontend)
+- ✅ Layout del frontend con dark mode + tokens semánticos
+- ✅ PWA instalable con HTTPS local (mkcert + Workbox)
+- ✅ Scripts de backup/restore + docs de deployment
 
 ---
 
 ## Estado BD local
 
-- `docker-compose.yml` creado. Correr `docker compose up -d` para iniciar PostgreSQL 16.
-- Container: `dtcore-db`, DB: `dtcore_db`, user: `admin`, password: `admin123`, port: 5432.
-- Sin migraciones todavía. Primera migración se genera en bloque 0.3.
+- Container: `dtcore-db`, DB: `dtcore_db`, user: `admin`, password: `admin123`, port: 5432
+- Migración `db0d114b5777_initial_schema.py` aplicada (head)
+- Seeds ejecutados: admin (`admin123`), PYG/USD/BRL/ARS, "Depósito principal", 8 settings
 
 ---
 
 ## Variables de entorno (.env local)
-
-A definir al iniciar bloque 0.1. Plantilla esperada:
 
 ```
 DATABASE_URL=postgresql+asyncpg://admin:admin123@localhost:5432/dtcore_db
@@ -55,7 +59,7 @@ docker compose up -d
 
 # Backend (en backend/)
 .venv\Scripts\activate
-pip install -r requirements.txt
+uvicorn app.main:app --reload
 
 # Frontend (en frontend/)
 npm run dev   # → https://localhost:5173
@@ -65,78 +69,148 @@ npm run dev   # → https://localhost:5173
 
 ## Próximo paso concreto
 
-Iniciar **Fase 0, bloque 0.6 — Layout y navegación**.
+Iniciar **Fase 2, bloque 2.1 — Backend contactos**.
 
 ---
 
 ## Historial de fases cerradas
 
+### Fixes de cierre Fase 1 (2026-05-25)
+
+Cuatro bugs corregidos después de prueba manual del bloque 1.4b:
+
+- **`apiFetch` + 204**: `res.json()` fallaba en respuestas vacías (DELETE devuelve 204). Fix: retornar `undefined as T` si `res.status === 204` en `src/lib/api.ts`.
+- **UniqueConstraint + soft delete**: la constraint `UNIQUE(currency_code, effective_date)` bloqueaba reinsertar una tasa con la misma fecha después de eliminarla (el registro soft-deleted seguía ocupando la key). Fix: reemplazada por partial unique index `WHERE deleted_at IS NULL` — migración `b46762debd86`.
+- **`can_edit` al agregar tasa**: `handleRateSaved` insertaba la nueva tasa con `can_edit: false` (valor por defecto del backend) sin actualizar el flag de las existentes. Fix: si la nueva tasa queda en posición 0 tras el sort, se recalcula `can_edit` para toda la lista (`i === 0` → true, resto → false).
+- **`can_edit` al eliminar tasa**: `handleRateDeleted` filtraba el array local, pero la nueva tasa en posición 0 conservaba `can_edit: false`. Fix: invalidar la key en `ratesMap` en lugar de filtrar — el `useEffect` existente hace refetch y el servidor devuelve los flags correctos.
+- **Navegación F5 en rutas protegidas**: `RequireAuth` redirigía a `/login` durante el primer render (antes de que `initFromStorage` corriera en el `useEffect`). Fix:
+  - `AuthStore`: campo `isLoading: true` por defecto; `initFromStorage` ahora async — llama a `GET /api/v1/auth/me` para validar el token, setea `isLoading: false` al terminar (éxito o error).
+  - `RequireAuth`: muestra spinner mientras `isLoading`; al redirigir a `/login` incluye `state={{ from: location }}`.
+  - `Login`: lee `location.state.from.pathname` y navega ahí post-login (fallback a `/`).
+
+### Bloque 1.4b — Edición y eliminación de tasas de cambio (2026-05-25)
+
+- Migración `62cdf51dca49`: ADD COLUMN `deleted_at TIMESTAMPTZ NULL` en `exchange_rates`.
+- `ExchangeRate` ahora hereda `SoftDeleteMixin` — soft delete via `deleted_at`.
+- `currencies_service.py`: excepciones `ExchangeRateNotFoundError`, `ExchangeRateNotLatestError`, `ExchangeRateInUseError`; funciones `get_exchange_rate`, `can_edit_or_delete`, `update_exchange_rate`, `delete_exchange_rate`; `_assert_editable` verifica max `effective_date` + ausencia de purchases/sales con `created_at > rate.created_at`.
+- `get_exchange_rates` filtra `deleted_at IS NULL`.
+- `ExchangeRateOut` tiene campo `can_edit: bool = False`. Nuevo schema `ExchangeRatePatch`.
+- `list_rates` calcula `can_edit` solo para la tasa más reciente (O(1) extra queries).
+- `api/exchange_rates.py`: `PATCH /api/v1/exchange-rates/{id}` y `DELETE /api/v1/exchange-rates/{id}`, ambos mapean `ExchangeRateNotLatestError`/`ExchangeRateInUseError` → HTTP 409 con mensaje en español.
+- `Currencies.tsx`: columna "Acciones" en tabla con botones Pencil/Trash2 (visibles solo si `can_edit`, `invisible` en las demás filas para mantener layout). Modales `EditRateModal` (edita `rate_to_base` + `notes`, muestra `currency_code` y `effective_date` como texto) y `DeleteRateModal` (confirmación con `.btn-danger`). Toast de error muestra `.detail` del backend.
+- 8 tests en `test_currencies_service.py` — todos pasan sin BD real.
+- Fix previo en misma sesión: `MissingGreenlet` en `patch_currency` y `create_rate` — corregido con `await db.refresh(...)` post-commit.
+
+### Bloque 1.4 — UI gestión de monedas (2026-05-25)
+
+- `app/schemas/currencies.py`: `CurrencyOut`, `CurrencyPatch`, `ExchangeRateOut`, `ExchangeRateCreate`.
+- `app/services/currencies_service.py`: `get_all_currencies`, `get_currency`, `toggle_currency`, `get_exchange_rates`, `create_exchange_rate`.
+- `app/api/currencies.py`: `GET /api/v1/currencies`, `PATCH /api/v1/currencies/{code}` (admin), `GET /api/v1/currencies/{code}/rates`, `POST /api/v1/currencies/{code}/rates` (admin, 409 en fecha duplicada).
+- `main.py`: router currencies registrado en `/api/v1/currencies`.
+- `src/features/admin/api/currencies.ts`: `fetchCurrencies`, `toggleCurrency`, `fetchExchangeRates`, `createExchangeRate`.
+- `src/features/admin/pages/Currencies.tsx`: layout two-column — lista de monedas (cards con toggle) + panel de tipos de cambio históricos. Modal para nueva tasa (rate + fecha + notas). Cache de rates por moneda. Toggle deshabilitado para PYG (moneda base). Toast de éxito/error.
+- `App.tsx`: ruta `/admin/currencies` agregada.
+- `Sidebar.tsx`: "Admin" → "Configuración", agregado "Monedas" con icono `Coins`.
+- `crypto.randomUUID()` en el frontend para el ID del exchange_rate.
+- TS y backend importan limpio.
+
+### Bloque 1.3 — UI panel admin (2026-05-25)
+
+- `src/features/admin/api/settings.ts`: `fetchAllSettings()` y `updateSetting(key, value)` usando `apiFetch`.
+- `src/features/admin/pages/Settings.tsx`: página `/admin/settings` con formulario agrupado en 4 secciones (Negocio, Moneda, Ventas, Stock). Un botón "Guardar" por sección. Input apropiado por `value_type`: `text`/`number`/`checkbox`/`textarea`. `default_warehouse_id` oculto (no editable hasta que haya UI de depósitos). Toast inline al guardar (éxito o error con detalle del backend).
+- `src/features/settings/hooks/useSettings.ts`: reemplazado el hardcode por fetch real a `GET /api/v1/settings/business_name`. Fallback a 'DTCore' si falla.
+- TypeScript compila sin errores (`npx tsc --noEmit`).
+
+### Bloque 1.2 — API de settings (2026-05-25)
+
+- `app/schemas/settings.py`: `SettingOut` (key, value_type, value parseado, description, updated_at, updated_by_user_id) + `SettingUpdateRequest` (value: Any).
+- `app/api/settings.py`: `GET /api/v1/settings` (requiere auth), `GET /api/v1/settings/{key}` (requiere auth), `PUT /api/v1/settings/{key}` (requiere rol admin). 404 en key inexistente, 422 en tipo incompatible, 500 en fallo de BD.
+- `settings_service.py` extendido: `get_setting_row`, `get_all_setting_rows`, `parse_value` (alias público de `_parse_value`), y `set_setting` ahora setea `updated_at` explícitamente en Python para que el response refleje el valor correcto sin necesidad de refresh post-commit.
+- `main.py`: router settings registrado en `/api/v1/settings`.
+
+### Bloque 1.1 — Service de settings (2026-05-25)
+
+- `app/services/settings_service.py`: `get_setting(db, key)`, `set_setting(db, key, value, user_id)`, `get_all_settings(db)`.
+- Parseo tipado via `_parse_value` y serialización via `_serialize_value` para los 5 `value_type` (`string`, `int`, `decimal`, `bool`, `json`). Todos los errores normalizados a `ValueError`.
+- Cache en memoria (`_cache` + `_cache_time`) con TTL de 60s e invalidación explícita al escribir. Cache es module-level; válido para deploy single-process uvicorn.
+- El router es responsable del `db.commit()` / `db.rollback()` — el service solo modifica el objeto ORM.
+- 49 tests en `app/tests/test_settings_service.py`: parseo, serialización, roundtrips, cache TTL, cache invalidation, validación de tipos, KeyError en keys inexistentes. Todos pasan sin BD real (AsyncMock).
+
+---
+
+### Bloque 0.8 — Backups (2026-05-25)
+
+- `scripts/backup.sh`: pg_dump del contenedor + gzip + rclone copy a Drive + limpieza local >30 días. Configurable via `.env` (`DB_CONTAINER`, `DB_USER`, `DB_NAME`, `BACKUP_LOCAL_DIR`, `BACKUP_DRIVE_REMOTE_PATH`, `RETENTION_DAYS_LOCAL`).
+- `scripts/verify_backup.sh`: verifica que existe dump de ayer en local; si no, escribe en `scripts/logs/verify_errors.log` y sale con exit 1 (detectable por cron).
+- `scripts/restore.sh`: toma `<archivo.sql.gz>`, pide confirmación interactiva, termina conexiones activas, drop+recreate DB, restaura.
+- `scripts/logs/.gitkeep`: directorio trackeado; los `.log` en `.gitignore`.
+- `docs/deployment.md`: pre-requisitos, `rclone config` paso a paso, crontab diario (2 AM backup + 7 AM verify), 3 casos de restore (local / desde Drive / PC nueva), troubleshooting.
+- `.gitignore`: agregados `backups/` y `scripts/logs/*.log`.
+
+### Bloque 0.7 — HTTPS local y PWA básica (2026-05-25)
+
+- `vite-plugin-mkcert` + `vite-plugin-pwa` ya instalados desde bloque 0.1; este bloque los configuró correctamente.
+- `vite.config.ts`: `strategies: 'generateSW'`, manifest completo (`name`, `short_name`, `description`, `theme_color: #111A2E`, `background_color: #0B1220`, `display: standalone`, iconos 192/512/512-maskable), Workbox con `cleanupOutdatedCaches`, `clientsClaim`, `skipWaiting`.
+- `public/icons/icon-192.png` y `icon-512.png`: placeholders PNG sólidos en color `bg-surface` (#111A2E). Reemplazar con iconos reales en Fase 7.
+- Build verificado: genera `dist/sw.js`, `dist/workbox-*.js`, `dist/manifest.webmanifest`, 12 entries precacheados.
+- `docs/comandos.md`: sección "HTTPS local con mkcert — instalar CA root en Android" con pasos para iOS también.
+- Nota: `npm run build` da errores de tsconfig (`erasableSyntaxOnly`, `tsBuildInfoFile`) pre-existentes del template de Vite. `npx vite build` y `npx tsc --noEmit` corren limpio. No bloquean el funcionamiento.
+
+### Sistema visual (2026-05-24, extensión del bloque 0.6)
+
+- `tailwind.config.js`: tokens semánticos via CSS variables (`bg/*`, `border/*`, `text/*`, paletas `primary`/`accent`/`danger`/`success`/`warning`/`info`, `fontFamily.sans: Inter`, `borderRadius.DEFAULT: 6px`, `darkMode: 'class'`).
+- `src/index.css`: Google Fonts Inter, CSS variables dark mode con fondos azulados (`bg-base: #0B1220`, `bg-surface: #111A2E`, etc.), clases `@layer components` (`.btn-primary`, `.btn-accent`, `.btn-secondary`, `.btn-danger`, `.btn-ghost`, `.input`, `.label`, `.card`).
+- AppLayout, Sidebar, Placeholder, Login refactorizados a tokens semánticos; sin `gray-*`/`slate-*`/`text-white` directos.
+- `docs/design-system.md`: creado como fuente de verdad visual.
+- `docs/common-patterns.md`: sección "Sistema visual" agregada.
+
 ### Bloque 0.6 — Layout y navegación (2026-05-23)
 
-- `tailwind.config.js`: paleta extendida — `primary` (blue), `secondary` (slate), `danger` (red), `success` (green)
-- `frontend/src/components/AppLayout.tsx`: header full-width (logo DTCore + business_name + usuario + logout) + sidebar fijo + `<Outlet />` para rutas anidadas
-- `frontend/src/components/Sidebar.tsx`: NavLink activo resaltado con `bg-primary-50 text-primary-700`; links: Inicio, POS, Ventas, Compras, Productos, Contactos, Inventario, Reportes, Admin
-- `frontend/src/components/Placeholder.tsx`: componente genérico "En construcción" reutilizado por todas las rutas placeholder
-- `frontend/src/features/settings/hooks/useSettings.ts`: retorna `businessName: 'DTCore'` hardcodeado — TODO Fase 1 bloque 1.2 cuando exista `GET /api/v1/settings/business_name`
-- `frontend/src/features/admin/pages/Settings.tsx`: placeholder de configuración (implementación en Fase 1)
-- `frontend/src/App.tsx`: React Router v6 con layout route pathless — `RequireAuth` wrapping `AppLayout` como padre de todas las rutas protegidas; rutas: `/`, `/pos`, `/ventas`, `/compras`, `/productos`, `/contactos`, `/inventario`, `/reportes`, `/admin/settings`
+- `src/components/AppLayout.tsx`: header (logo + business_name + usuario + logout con icono `LogOut`) + sidebar + `<Outlet />`
+- `src/components/Sidebar.tsx`: 9 NavLinks con iconos Lucide (`Home`, `ShoppingCart`, `Receipt`, `Truck`, `Package`, `Users`, `Boxes`, `BarChart3`, `Settings`), activo con `bg-primary-500/10 text-primary-500`
+- `src/components/Placeholder.tsx`: componente "En construcción" reutilizable
+- `src/features/settings/hooks/useSettings.ts`: `businessName: 'DTCore'` hardcodeado — reemplazar en bloque 1.2
+- `src/features/admin/pages/Settings.tsx`: placeholder (implementar en Fase 1)
+- `src/App.tsx`: layout route pathless — `RequireAuth > AppLayout` como padre; rutas: `/`, `/pos`, `/ventas`, `/compras`, `/productos`, `/contactos`, `/inventario`, `/reportes`, `/admin/settings`
+- `lucide-react` instalado
 
 ### Bloque 0.5 — Auth backend + frontend (2026-05-23)
 
-- `backend/main.py`: FastAPI app con CORS (localhost:5173)
-- `app/schemas/auth.py`: `LoginRequest`, `UserOut`, `TokenResponse`
-- `app/services/auth_service.py`: `hash_password`, `verify_password`, `create_access_token`, `decode_token`, `authenticate_user`
-- `app/api/deps.py`: `get_current_user` (valida JWT del header `Authorization`), `require_role(*roles)`
 - `app/api/auth.py`: `POST /api/v1/auth/login`, `GET /me`, `POST /logout`
+- `app/services/auth_service.py`: bcrypt cost 12, JWT con expiración configurable
+- `app/api/deps.py`: `get_current_user`, `require_role(*roles)`
 - `frontend/src/lib/api.ts`: `apiFetch<T>` con header automático + manejo de 401
-- `frontend/src/features/auth/store.ts`: Zustand store con persistencia en localStorage (`dtcore_token`, `dtcore_user`)
-- `frontend/src/features/auth/hooks/useAuth.ts`: hook que hidrata desde storage en primer render
-- `frontend/src/features/auth/pages/Login.tsx`: formulario usuario/contraseña con manejo de error
+- `frontend/src/features/auth/store.ts`: Zustand con persistencia en localStorage (`dtcore_token`, `dtcore_user`)
+- `frontend/src/features/auth/hooks/useAuth.ts`: hidrata desde storage en primer render
+- `frontend/src/features/auth/pages/Login.tsx`: formulario con manejo de error
 - `frontend/src/components/RequireAuth.tsx`: redirect a `/login` si no autenticado
-- `frontend/src/App.tsx`: React Router v6 con rutas pública (`/login`) y protegida (`/`)
-- `frontend/vite.config.ts`: proxy `/api → http://localhost:8000`
-- `backend/.env`: `SEED_ADMIN_PASSWORD=admin123` agregado para dev
-- Nota: seed es idempotente (`ON CONFLICT DO NOTHING`); contraseña admin en dev es `admin123`
-
-
+- Contraseña admin en dev: `admin123`
 
 ### Bloque 0.4 — Seeds iniciales (2026-05-23)
 
-- `app/seed/currencies.py`: PYG, USD, BRL, ARS
-- `app/seed/users.py`: admin con UUID fijo `00000000-0000-4000-8000-000000000001`; password vía `SEED_ADMIN_PASSWORD` env var o `getpass`
-- `app/seed/warehouses.py`: "Depósito principal" con UUID fijo `00000000-0000-4000-8000-000000000002`, `is_default=true`
-- `app/seed/settings.py`: 8 keys del ERD sección 1.2; `default_warehouse_id` apunta al UUID fijo del depósito
-- `app/seed/run.py`: punto de entrada `python -m app.seed.run` (requiere `SEED_ADMIN_PASSWORD` en env o prompt)
-- Todos idempotentes con `INSERT ... ON CONFLICT DO NOTHING`
-- Verificado: primera y segunda ejecución limpias sin duplicados
+- `app/seed/`: `currencies.py`, `users.py`, `warehouses.py`, `settings.py`, `run.py`
+- Admin UUID fijo `00000000-0000-4000-8000-000000000001`; password vía `SEED_ADMIN_PASSWORD` env var o prompt
+- Warehouse "Depósito principal" UUID fijo `00000000-0000-4000-8000-000000000002`, `is_default=true`
+- 8 settings keys del ERD. Todos idempotentes (`INSERT ... ON CONFLICT DO NOTHING`)
 
-### Bloque 0.3 — Schema completo (migración inicial) (2026-05-23)
+### Bloque 0.3 — Schema completo (2026-05-23)
 
-- 14 enums Python en `app/enums.py`
-- 20 tablas en 9 archivos de modelo (`app/models/`): users, settings, currencies, contacts, products, inventory, purchases, sales, audit
-- Todos los FKs, unique constraints, check constraints e índices con nombres explícitos
-- Partial indexes (barcode, document_number, uq_warehouses_one_default) correctos en migración
-- Migración `db0d114b5777_initial_schema.py` generada con autogenerate + DROP TYPE agregados manualmente en downgrade
-- Verificación: `upgrade head` → `downgrade base` → `upgrade head` limpios
-- La BD queda en `head` (migración aplicada)
+- 14 enums Python en `app/enums.py`, 20 tablas en 9 archivos de modelo
+- Migración `db0d114b5777_initial_schema.py`: upgrade/downgrade/upgrade verificados
+- Partial indexes, CHECK constraints, FK names explícitos según convención
 
-### Bloque 0.2 — Base de SQLAlchemy + Alembic + settings (2026-05-23)
+### Bloque 0.2 — Base de SQLAlchemy + Alembic (2026-05-23)
 
-- `app/config.py`: pydantic-settings con DATABASE_URL, JWT_SECRET, JWT_EXPIRES_HOURS (default 8), STORAGE_PATH, BACKUP_DRIVE_REMOTE_PATH
-- `app/database.py`: `Base` declarativa, engine async (asyncpg), `AsyncSessionLocal`, `get_db()` dependency
-- `app/models/mixins.py`: `TimestampMixin`, `SoftDeleteMixin`, `AuditUserMixin` (con `declared_attr` y FK names explícitos)
-- `app/enums.py`: archivo listo para importar enums en bloque 0.3
-- Alembic: `alembic.ini` + `alembic/env.py` configurado para async (`asyncio.run` + `async_engine_from_config`). DATABASE_URL se lee de `settings`, no de alembic.ini.
-- `.env.example` en raíz del repo con instrucción de copiar a `backend/.env`
-- Nota: para correr `alembic` hay que estar en `backend/` con el venv activado
+- `app/config.py`: pydantic-settings
+- `app/database.py`: engine async (asyncpg), `AsyncSessionLocal`, `get_db()`
+- `app/models/mixins.py`: `TimestampMixin`, `SoftDeleteMixin`, `AuditUserMixin`
+- Alembic configurado para async; DATABASE_URL desde settings
 
 ### Bloque 0.1 — Estructura del proyecto (2026-05-23)
 
-- Estructura `backend/` y `frontend/` creadas
-- Docker Compose con PostgreSQL 16 (`dtcore-db`)
-- Backend: `app/{api,services,models,schemas,seed,tests}/`, `requirements.txt`, `pyproject.toml` (ruff+black), venv Python
-- Frontend: Vite 5 + React 18 + TS 5.5, Tailwind 3, React Router v6, Zustand, Recharts, vite-plugin-pwa, vite-plugin-mkcert
-- Nota: Node 20.12.1 genera warnings EBADENGINE en eslint/globals; no afecta el dev server. Considerar actualizar Node a 20.19+ si genera problemas.
+- Estructura `backend/` y `frontend/`, Docker Compose con PostgreSQL 16
+- Vite 5 + React 18 + TS 5.5, Tailwind 3, React Router v6, Zustand, Recharts
+- Nota: Node 20.12.1 genera warnings EBADENGINE en eslint/globals — no afecta dev server
 
 ---
 
@@ -150,8 +224,10 @@ Iniciar **Fase 0, bloque 0.6 — Layout y navegación**.
 | `docs/roadmap.md`          | Fases y bloques                     | Bajo                 |
 | `docs/prompts.md`          | Prompts por bloque para Claude Code | Bajo                 |
 | `docs/design-decisions.md` | Historial de por qué                | Bajo                 |
+| `docs/design-system.md`    | Sistema visual (tokens, componentes)| Bajo                 |
 | `docs/common-patterns.md`  | Patrones de código                  | Medio                |
 | `docs/comandos.md`         | Referencia de comandos              | Bajo                 |
+| `docs/deployment.md`       | Guía de deployment y backups        | Bajo                 |
 
 ---
 
@@ -159,15 +235,17 @@ Iniciar **Fase 0, bloque 0.6 — Layout y navegación**.
 
 1. Leer este archivo (HANDOFF.md) primero
 2. `git log --oneline -20` para ver últimos commits
-3. Verificar entorno local: `docker ps`, venv activado, `alembic current`
+3. Verificar entorno: `docker ps`, venv activado, `alembic current`
 4. Abrir Claude Code en la raíz del proyecto
 
 ---
 
-## Cómo obtener la ip del contenedor de la BD de docker
+## Cómo obtener la IP del contenedor de la BD de Docker
 
+```powershell
 docker network connect bridge dtcore-db
 docker inspect dtcore-db | Select-String '"IPAddress"'
+```
 
 ---
 

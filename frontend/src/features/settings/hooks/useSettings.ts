@@ -1,6 +1,23 @@
-// TODO Fase 1 bloque 1.2: reemplazar con GET /api/v1/settings/business_name cuando el endpoint exista
+import { useEffect, useState } from 'react'
+import { apiFetch } from '../../../lib/api'
+
+interface SettingOut {
+  key: string
+  value: unknown
+}
+
 export function useSettings() {
-  return {
-    businessName: 'DTCore',
-  }
+  const [businessName, setBusinessName] = useState<string>('DTCore')
+
+  useEffect(() => {
+    apiFetch<SettingOut>('/settings/business_name')
+      .then((s) => {
+        if (typeof s.value === 'string' && s.value) setBusinessName(s.value)
+      })
+      .catch(() => {
+        // keep default on error
+      })
+  }, [])
+
+  return { businessName }
 }
