@@ -2,15 +2,15 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-05-26 — Fase 2 cerrada. Próximo: Fase 3, Bloque 3.1.
+**Última actualización:** 2026-05-26 — Bloque 3.3 cerrado. Próximo: 3.4 Backend precios.
 
 ---
 
 ## Fase actual
 
-**Fase 3 — Productos** (no iniciada)
+**Fase 3 — Productos**
 
-Próximo bloque a ejecutar: **3.1 — Backend categorías** (ver `docs/roadmap.md`).
+Próximo bloque a ejecutar: **3.4 — Backend precios** (ver `docs/roadmap.md`).
 
 ---
 
@@ -69,11 +69,46 @@ npm run dev   # → https://localhost:5173
 
 ## Próximo paso concreto
 
-Iniciar **Fase 3, bloque 3.1 — Backend categorías**.
+Iniciar **Fase 3, bloque 3.4 — Backend precios**.
 
 ---
 
 ## Historial de fases cerradas
+
+### Bloque 3.3 — Backend unidades de producto (2026-05-26)
+
+- `app/schemas/product_units.py`: `ProductUnitCreate` (id requerido, factor_to_base > 0), `ProductUnitUpdate` (todo opcional — incluye factor_to_base, inmutabilidad validada en service), `ProductUnitOut`.
+- `app/services/product_unit_service.py`: 6 reglas de negocio implementadas y testeadas.
+  - R1 (en `product_service.py`): `create_product` con `track_stock=True` crea automáticamente una `ProductUnit` con `unit_name=base_unit`, `factor_to_base=1`, ambas flags default=True.
+  - R2: `delete_unit` rechaza si `factor_to_base == 1` → `ProductUnitBaseUnitDeleteError`.
+  - R3: `delete_unit` rechaza si hay refs en `purchase_items`, `sale_items`, `stock_adjustment_items`, `product_prices` → `ProductUnitHasReferencesError`.
+  - R4: `update_unit` rechaza cambio de `factor_to_base` si hay refs en las 4 tablas → `ProductUnitFactorImmutableError`. Si el nuevo valor == el actual, omite la verificación.
+  - R5: `create_unit` y `update_unit` desmarcan el holder previo de `is_default_sale_unit` y `is_default_purchase_unit` antes de asignar la nueva unidad como default.
+  - R6: `update_unit` rechaza si la unidad tiene `factor_to_base==1` y el update dejaría ambas flags default en False → `ProductUnitNoDefaultError`.
+  - `_has_references`: helper que itera 4 tablas con `limit(1)`, corta al primer hit.
+  - `_clear_default_flag`: helper que busca el holder actual de un flag y lo desactiva (excluye el unit_id propio en updates).
+- `app/api/product_units.py`: `GET /{product_id}/units`, `POST /{product_id}/units` (201), `PATCH /{product_id}/units/{unit_id}`, `DELETE /{product_id}/units/{unit_id}` (204). Router verifica existencia del producto antes de delegar al service. `IntegrityError` → 409 (nombre duplicado).
+- `main.py`: router `product_units_router` registrado en `/api/v1/products` (mismo prefix que productos, los paths incluyen `/{product_id}/units`).
+- `app/tests/test_product_unit_service.py`: 27 tests — todos pasan. TestGetUnits, TestGetUnit, TestCreateUnit (Rule 5), TestUpdateUnit (Rules 4, 5, 6), TestDeleteUnit (Rules 2, 3).
+- `app/tests/test_product_service.py` actualizado: `test_adds_product_and_audit_log_to_session` → `test_adds_product_base_unit_and_audit_log_to_session` (espera count=3); nuevo `test_no_base_unit_when_track_stock_false` (count=2).
+- Suite completa: **114 tests, todos pasan**.
+
+### Bloque 3.2 — Backend productos (2026-05-26)
+
+- `alembic/versions/e4f5a6b7c8d9_enable_pg_trgm_and_gin_index.py`: habilita extensión `pg_trgm` + crea índice GIN `ix_products_name_trgm` sobre `products.name`. Head: `e4f5a6b7c8d9`. **Pendiente aplicar: `alembic upgrade head`**.
+- `app/schemas/products.py`: `ProductCreate` (id requerido — UUID en cliente), `ProductUpdate` (todo opcional), `ProductOut` (con AuditUserMixin), `ProductListOut`, `ProductSearchResult` (incluye `similarity: float`).
+- `app/services/product_service.py`: `get_product`, `list_products` (ILIKE + filtros categoria/is_active + paginación), `search_products` (trigram: SKU exacto o barcode primero, luego ILIKE en nombre con score `GREATEST(similarity, exact_match)`), `create_product`, `update_product`, `delete_product` (soft delete). Todas las mutaciones crean AuditLog.
+- `app/api/products.py`: `GET /products/search` (declarado antes de `/{id}` para evitar routing conflict), `GET /products`, `GET /products/{id}`, `POST /products` (201), `PUT /products/{id}`, `DELETE /products/{id}` (204). `IntegrityError` → 409 "Ya existe un producto con ese SKU".
+- `app/tests/test_product_service.py`: 20 tests — CRUD + search result mapping + cast a float. Todos pasan.
+- `main.py`: router registrado en `/api/v1/products`.
+
+### Bloque 3.1 — Backend categorías (2026-05-26)
+
+- `app/schemas/categories.py`: `CategoryCreate` (id requerido — UUID en cliente), `CategoryUpdate` (todo opcional para PUT), `CategoryOut`, `CategoryTreeNode` (recursivo con `model_rebuild()`).
+- `app/services/category_service.py`: `get_category`, `get_category_tree` (árbol O(n) en memoria), `create_category`, `update_category`, `delete_category` (soft delete). `_would_create_cycle` recorre la cadena de ancestros para detectar ciclos. Excepciones: `CategoryNotFoundError`, `CategoryParentNotFoundError`, `CategoryCycleError`.
+- `app/api/categories.py`: `GET /categories` (árbol), `GET /categories/{id}`, `POST /categories` (201), `PUT /categories/{id}`, `DELETE /categories/{id}` (204). `IntegrityError` → 409 (nombre duplicado en mismo nivel). `CategoryCycleError` → 422.
+- `main.py`: router registrado en `/api/v1/categories`.
+- Sin migración: tabla `product_categories` ya existía en schema inicial.
 
 ### Fase 2 — Contactos (2026-05-26)
 

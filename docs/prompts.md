@@ -295,12 +295,29 @@ Implementar bloque 3.2 siguiendo docs/roadmap.md, docs/erd.md y CLAUDE.md.
 ```
 Implementar bloque 3.3 siguiendo docs/roadmap.md y docs/erd.md.
 
-- app/services/product_unit_service.py: CRUD anidado bajo productos
-- Validaciones (en service, no por constraint):
-  - Al crear/actualizar: si is_default_sale_unit=true, desmarcar el anterior default
-  - Mismo para is_default_purchase_unit
-  - Al borrar: no permitir si es la única unidad o si está referenciada en ventas/compras
-- Endpoints: GET /products/{id}/units, POST /products/{id}/units, PUT /products/{id}/units/{unit_id}, DELETE
+REGLAS DE NEGOCIO CRÍTICAS (validar en service, no por constraint):
+
+1. Creación automática de unidad base:
+   - Al crear un producto con track_stock=true, crear automáticamente una product_unit con:
+     - unit_name = product.base_unit
+     - factor_to_base = 1
+     - is_default_sale_unit = True
+     - is_default_purchase_unit = True
+   - Esto garantiza que el producto siempre tiene al menos la unidad base.
+
+2. Unidad base no se puede eliminar nunca (factor_to_base = 1).
+
+3. Una unidad cualquiera no se puede eliminar si tiene movimientos de stock, items de venta, o items de compra asociados.
+
+4. factor_to_base es inmutable después de que la unidad tiene cualquier referencia (stock movement, sale_item, purchase_item, price). Esto evitaría reescribir cantidades históricas.
+
+5. Solo una unidad puede tener is_default_sale_unit=true por producto. Al setear true en una, desmarcar la anterior automáticamente. Mismo para is_default_purchase_unit.
+
+6. La unidad base siempre debe tener al menos una de las dos flags default; si el usuario las saca, dejar un error claro.
+
+- app/services/product_unit_service.py: CRUD anidado bajo productos con las validaciones de arriba
+- Endpoints: GET /products/{id}/units, POST /products/{id}/units, PATCH /products/{id}/units/{unit_id}, DELETE
+- Tests cubriendo cada una de las 6 reglas
 ```
 
 ### Bloque 3.4 — Backend precios
@@ -308,11 +325,21 @@ Implementar bloque 3.3 siguiendo docs/roadmap.md y docs/erd.md.
 ```
 Implementar bloque 3.4 siguiendo docs/roadmap.md, docs/erd.md y docs/design-decisions.md (precios históricos).
 
+DECISIÓN DE DISEÑO: solo se permite agregar precios con effective_from >= último effective_from registrado para esa combinación (product_unit_id, currency_code). No se permite intercalar precios en el pasado. Esto mantiene el modelo simple y consistente.
+
 - app/services/price_service.py:
-  - get_current_price(db, product_unit_id, currency_code) -> precio vigente
-  - add_price(db, product_unit_id, currency_code, price, effective_from, user_id) -> nuevo registro append-only
-  - get_price_history(db, product_unit_id, currency_code) -> histórico ordenado
-- Endpoints: POST /products/{id}/units/{unit_id}/prices, GET /products/{id}/units/{unit_id}/prices
+  - get_current_price(db, product_unit_id, currency_code) -> precio vigente (mayor effective_from <= hoy)
+  - add_price(db, product_unit_id, currency_code, price, effective_from, notes, user_id):
+    - Validar: effective_from >= último effective_from registrado para esta combinación
+    - Si falla: 400 Bad Request "No se pueden cargar precios con fecha anterior al último registrado ({fecha})"
+    - Validar: price >= 0
+    - Insertar append-only
+  - get_price_history(db, product_unit_id, currency_code) -> histórico ordenado por effective_from DESC
+- Endpoints:
+  - POST /products/{id}/units/{unit_id}/prices
+  - GET /products/{id}/units/{unit_id}/prices
+- Sin DELETE ni PATCH de precios. La corrección de errores se hace agregando un nuevo precio con la fecha actual.
+- Tests: precio vigente correcto con múltiples cambios, rechazo de fechas anteriores, primer precio sin restricción de fecha
 ```
 
 ### Bloque 3.5 — UI lista de productos
@@ -320,12 +347,25 @@ Implementar bloque 3.4 siguiendo docs/roadmap.md, docs/erd.md y docs/design-deci
 ```
 Implementar bloque 3.5 siguiendo docs/roadmap.md.
 
-- src/features/products/pages/ProductsList.tsx: tabla con búsqueda, filtros por categoría
-- Mostrar stock actual del depósito default (consumir GET /api/v1/stock?warehouse_id=default)
-- Indicador visual rojo cuando stock <= low_stock_threshold (del producto o del setting default)
-- Botón "Nuevo producto"
+CONTEXTO: el endpoint GET /api/v1/stock se crea en Fase 4 (bloque 4.1). En este bloque, NO consumir ese endpoint. La columna de stock se agrega en Fase 4 cuando exista.
 
-Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
+- src/features/products/pages/ProductsList.tsx: tabla con búsqueda, filtros por categoría
+- Columnas (en este orden):
+  1. SKU
+  2. Nombre (con barcode debajo en text-xs si existe)
+  3. Categoría
+  4. Unidad base
+  5. Precio vigente en PYG de la default_sale_unit (con tabular-nums)
+  6. Estado (activo / inactivo si soft-deleted)
+  7. Acciones (editar)
+- Búsqueda usa GET /products/search?q= con debounce 300ms
+- Filtro de categoría con dropdown (carga el árbol de categorías)
+- Toggle "Mostrar inactivos" para ver soft-deleted (default: oculto)
+- Botón "Nuevo producto" (.btn-primary) navega a /productos/nuevo
+- Click en fila (o icono editar) → /productos/:id
+- Paginación server-side (reutilizar patrón de contactos)
+
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), tabular-nums en columna de precio, nunca hex hardcodeados ni text-white directo.
 ```
 
 ### Bloque 3.6 — UI formulario de producto
@@ -348,10 +388,13 @@ Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, bo
 Implementar bloque 3.7 siguiendo docs/roadmap.md.
 
 - src/features/admin/pages/Categories.tsx: árbol jerárquico (componente recursivo)
-- CRUD inline: doble-click para editar nombre, botón "+" para agregar hija, botón "x" para eliminar (con confirmación)
+- Cada nodo muestra: nombre + iconos de acción al hover (en mobile siempre visibles):
+  - Pencil (editar nombre — inline o modal)
+  - Plus (agregar hija)
+  - Trash2 (eliminar, con confirmación; no permitir si tiene productos asociados activos)
 - Drag-and-drop para reorganizar — opcional, marcar como nice-to-have
 
-Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo.
+Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente, nunca hex hardcodeados ni text-white directo.
 ```
 
 ---

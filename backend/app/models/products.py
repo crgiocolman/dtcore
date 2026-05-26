@@ -69,8 +69,9 @@ class Product(TimestampMixin, SoftDeleteMixin, AuditUserMixin, Base):
         UniqueConstraint("sku", name="uq_products_sku"),
         CheckConstraint("tax_rate >= 0 AND tax_rate <= 100", name="ck_products_tax_rate_range"),
         Index(
-            "ix_products_barcode",
+            "uq_products_barcode",
             "barcode",
+            unique=True,
             postgresql_where=text("barcode IS NOT NULL"),
         ),
         Index("ix_products_name", "name"),
