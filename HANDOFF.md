@@ -2,15 +2,15 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-05-25 — Fase 1 cerrada. Próximo: Fase 2, Bloque 2.1.
+**Última actualización:** 2026-05-26 — Fase 2 cerrada. Próximo: Fase 3, Bloque 3.1.
 
 ---
 
 ## Fase actual
 
-**Fase 2 — Contactos** (no iniciada)
+**Fase 3 — Productos** (no iniciada)
 
-Próximo bloque a ejecutar: **2.1 — Backend contactos** (ver `docs/roadmap.md`).
+Próximo bloque a ejecutar: **3.1 — Backend categorías** (ver `docs/roadmap.md`).
 
 ---
 
@@ -69,11 +69,44 @@ npm run dev   # → https://localhost:5173
 
 ## Próximo paso concreto
 
-Iniciar **Fase 2, bloque 2.1 — Backend contactos**.
+Iniciar **Fase 3, bloque 3.1 — Backend categorías**.
 
 ---
 
 ## Historial de fases cerradas
+
+### Fase 2 — Contactos (2026-05-26)
+
+### Bloque 2.3 — UI formulario de contacto (2026-05-26)
+
+- `src/features/contacts/pages/ContactForm.tsx`: componente único para `/contactos/nuevo` y `/contactos/:id`. `isEdit = Boolean(id)` desde `useParams`.
+- 4 secciones en `card`: Identificación (tipo + documento), Datos del contacto (business_name requerido + trade_name), Comunicación (teléfono, email, dirección), Notas y estado (notas + toggle is_active).
+- `DeleteModal` local con confirmación; `Toggle` local (no extraído a shared — sin abstracción prematura).
+- Validaciones: `business_name` requerido, `document_number` requerido si `document_type !== 'none'`, regex de email. Cambiar `document_type` a `none` limpia el error y deshabilita el input.
+- `document_number` enviado como `null` cuando `document_type === 'none'`.
+- `crypto.randomUUID()` para UUID del contacto nuevo.
+- Layout: `flex flex-col h-full` + `form flex-1 overflow-y-auto` + `max-w-2xl pb-6` (patrón formulario largo de `common-patterns.md`).
+- `src/features/contacts/api/contacts.ts` extendido: interfaces `ContactCreate`, `ContactUpdate`; funciones `fetchContact`, `createContact`, `updateContact`, `deleteContact`.
+- `App.tsx`: rutas `/contactos/nuevo` y `/contactos/:id` apuntando a `ContactForm`.
+- `tsc --noEmit` pasa sin errores.
+
+### Bloque 2.2 — UI lista de contactos (2026-05-26)
+
+- `src/features/contacts/hooks/useContacts.ts`: estado de lista encapsulado (data, loading, error, page, search, contactType). Debounce de 300ms; resetea page a 1 al cambiar filtros.
+- `src/features/contacts/pages/ContactsList.tsx`: tabla con columnas nombre, documento (con prefijo de tipo), tipo (badge coloreado), teléfono, email, estado. Búsqueda con ícono Search, select de tipo. Paginación server-side con ChevronLeft/Right. Estado vacío con ícono Users y botón condicional "Agregar primer contacto".
+- `src/features/contacts/api/contacts.ts` (versión inicial): tipos `ContactType`, `DocumentType`, interfaces `ContactOut`, `ContactListOut`, `ContactListParams`; `fetchContacts`.
+- `App.tsx`: ruta `/contactos` apuntando a `ContactsList`. Fila clickeable navega a `/contactos/:id`.
+
+### Bloque 2.1 — Backend contactos (2026-05-26)
+
+- `app/models/contacts.py`: modelo `Contact` con `SoftDeleteMixin` + `AuditUserMixin`. Enum `ContactType` (customer/supplier/both), `DocumentType` (ruc/ci/passport/none). Índice en `business_name` + `document_number`.
+- `app/schemas/contacts.py`: `ContactOut`, `ContactCreate` (id requerido — UUID en cliente), `ContactUpdate` (todo opcional para PATCH), `ContactListOut` (con `total_pages`).
+- `app/services/contact_service.py`: `list_contacts` filtra `deleted_at IS NULL`; contactos de tipo `customer`/`supplier` incluyen los de tipo `both` (filtro `IN([type, BOTH])`); búsqueda por `business_name` o `document_number` (ILIKE). `create_contact`, `get_contact`, `update_contact`, `delete_contact` (soft delete). Audit log en todas las mutaciones.
+- `app/api/contacts.py`: endpoints `GET /contacts`, `GET /contacts/{id}`, `POST /contacts` (201), `PATCH /contacts/{id}`, `DELETE /contacts/{id}` (204). Commit/rollback en router.
+- `app/main.py`: router registrado en `/api/v1/contacts`.
+- Migración no requerida (tabla `contacts` ya existía en schema inicial).
+
+---
 
 ### Fixes de cierre Fase 1 (2026-05-25)
 

@@ -107,8 +107,8 @@ Fases organizadas verticalmente por módulo end-to-end (backend + frontend junto
 - **2.1 — Backend contactos**
   - Modelo y schemas Pydantic
   - Service con CRUD + búsqueda por documento o nombre
-  - Endpoints `GET /contacts`, `GET /contacts/{id}`, `POST /contacts`, `PUT /contacts/{id}`, `DELETE /contacts/{id}` (soft delete)
-  - Filtros: `?type=customer|supplier|both`, `?search=`, paginación
+  - Endpoints `GET /contacts`, `GET /contacts/{id}`, `POST /contacts`, `PATCH /contacts/{id}`, `DELETE /contacts/{id}` (soft delete)
+  - Filtros: `?contact_type=customer|supplier|both`, `?search=`, paginación (`page`, `page_size`); `customer` y `supplier` incluyen registros `both`
   - Audit log al crear/actualizar/borrar
 
 - **2.2 — UI lista de contactos**
