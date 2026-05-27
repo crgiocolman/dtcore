@@ -27,6 +27,10 @@ class CategoryHasProductsError(Exception):
     pass
 
 
+class CategoryHasChildrenError(Exception):
+    pass
+
+
 async def get_category(db: AsyncSession, category_id: UUID) -> ProductCategory | None:
     result = await db.execute(
         select(ProductCategory).where(
@@ -141,6 +145,16 @@ async def delete_category(
     category = await get_category(db, category_id)
     if category is None:
         raise CategoryNotFoundError()
+
+    child = (
+        await db.execute(
+            select(ProductCategory.id)
+            .where(ProductCategory.parent_id == category_id, ProductCategory.deleted_at.is_(None))
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if child is not None:
+        raise CategoryHasChildrenError()
 
     active_product = (
         await db.execute(

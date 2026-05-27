@@ -36,7 +36,12 @@ class ProductCategory(TimestampMixin, SoftDeleteMixin, Base):
     is_active = Column(Boolean, nullable=False, default=True, server_default="true")
 
     __table_args__ = (
-        UniqueConstraint("name", "parent_id", name="uq_product_categories_name_parent"),
+        Index(
+            "uq_product_categories_name_parent_active",
+            "name", "parent_id",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
         Index("ix_product_categories_parent_id", "parent_id"),
     )
 
@@ -66,13 +71,18 @@ class Product(TimestampMixin, SoftDeleteMixin, AuditUserMixin, Base):
     is_active = Column(Boolean, nullable=False, default=True, server_default="true")
 
     __table_args__ = (
-        UniqueConstraint("sku", name="uq_products_sku"),
         CheckConstraint("tax_rate >= 0 AND tax_rate <= 100", name="ck_products_tax_rate_range"),
         Index(
-            "uq_products_barcode",
+            "uq_products_sku_active",
+            "sku",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+        Index(
+            "uq_products_barcode_active",
             "barcode",
             unique=True,
-            postgresql_where=text("barcode IS NOT NULL"),
+            postgresql_where=text("barcode IS NOT NULL AND deleted_at IS NULL"),
         ),
         Index("ix_products_name", "name"),
         Index("ix_products_category_id", "category_id"),

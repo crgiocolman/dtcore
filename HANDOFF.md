@@ -2,7 +2,7 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-05-26 — Bloque 3.3 cerrado. Próximo: 3.4 Backend precios.
+**Última actualización:** 2026-05-27 — Correcciones post-pruebas Fase 3 aplicadas. Próximo: Fase 4 — Compras + Inventario inicial.
 
 ---
 
@@ -10,7 +10,7 @@ Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de 
 
 **Fase 3 — Productos**
 
-Próximo bloque a ejecutar: **3.4 — Backend precios** (ver `docs/roadmap.md`).
+**Fase 3 completa.** Próximo: **Fase 4 — Compras + Inventario inicial** (bloque 4.1 — Backend stock_movements + stock_current).
 
 ---
 
@@ -69,11 +69,84 @@ npm run dev   # → https://localhost:5173
 
 ## Próximo paso concreto
 
-Iniciar **Fase 3, bloque 3.4 — Backend precios**.
+Iniciar **Fase 4, bloque 4.1 — Backend stock_movements + stock_current**.
 
 ---
 
 ## Historial de fases cerradas
+
+### Correcciones post-pruebas Fase 3 (2026-05-27)
+
+Cuatro fixes aplicados tras pruebas manuales:
+
+1. **Soft delete en product_units** (`services/product_unit_service.py`): `delete_unit` ahora hace `unit.is_active = False` en vez de `db.delete(unit)`. `get_units` y `get_unit` filtran por `is_active == True`. `get_units` agrega JOIN con `Product` para excluir unidades de productos borrados. `_clear_default_flag` también filtra por `is_active`.
+
+2. **Índices parciales SKU/barcode** (`models/products.py` + migración `e9d3289f8583`): `uq_products_sku` (constraint plana) → `uq_products_sku_active` (partial `WHERE deleted_at IS NULL`). `uq_products_barcode` (partial solo por barcode IS NOT NULL) → `uq_products_barcode_active` (`WHERE barcode IS NOT NULL AND deleted_at IS NULL`).
+
+3. **Categorías — bloqueo de borrado con hijos** (`services/category_service.py` + `api/categories.py`): antes de borrar una categoría, verifica que no tenga subcategorías activas. Si tiene, retorna 409 con mensaje descriptivo.
+
+4. **Índice parcial en categorías** (migración `48e53aacdc40`): `uq_product_categories_name_parent` → `uq_product_categories_name_parent_active` (`WHERE deleted_at IS NULL`), permitiendo re-crear una categoría borrada con el mismo nombre.
+
+5. **Documentación** (`docs/design-decisions.md`): nueva sección "UNIQUE con soft delete: índices parciales" explica el patrón y lista todas las columnas afectadas.
+
+### Bloque 3.7 — UI categorías (2026-05-27)
+
+- `src/features/admin/api/categories.ts`: re-exporta `CategoryTreeNode`, `fetchCategoryTree` desde products api; agrega `CategoryOut`, `createCategory`, `updateCategory`, `deleteCategory`.
+- `src/features/admin/pages/Categories.tsx`: árbol jerárquico interactivo.
+  - Tres helpers de árbol inmutables: `replaceNode`, `removeNode`, `appendChild`.
+  - `CategoryNode` recursivo: muestra nombre o input de rename o confirmación inline de borrado. Profundidad via `paddingLeft: 12 + depth * 20` (inline style). Categorías inactivas con `text-text-muted line-through`.
+  - `AddRow`: input inline para nueva categoría (aparece al final del nodo padre, o al final del root).
+  - `TreeCtx` object pasado como prop: evita prop-drilling individual de callbacks.
+  - Acciones por nodo (Pencil / Plus / Trash2): `opacity-100 sm:opacity-0 sm:group-hover:opacity-100` — siempre visibles en mobile, hover en desktop.
+  - Solo una operación activa a la vez: `cancelAll()` limpia todos los estados de edición antes de iniciar una nueva.
+  - Creación → `POST /categories` con UUID cliente. Rename → `PATCH /categories/:id`. Borrado → `DELETE /categories/:id` con confirmación inline.
+  - Error banner en rojo (dismissible) encima del árbol. Errores de FK (tiene productos activos → 409) se muestran ahí.
+  - Empty state con icono `FolderOpen` + botón "Agregar primera categoría".
+- `App.tsx`: ruta `/admin/categorias` → `Categories`.
+- `Sidebar.tsx`: ítem "Categorías" con icono `FolderTree`.
+- `tsc --noEmit` pasa sin errores.
+
+### Bloque 3.6 — UI formulario de producto (2026-05-27)
+
+- `src/features/products/api/products.ts`: agregado `ProductCreate`, `ProductUpdate`; `fetchProduct`, `createProduct`, `updateProduct`, `deleteProduct`.
+- `src/features/products/api/units.ts`: agregado `ProductUnitCreate`, `ProductUnitUpdate`; `createUnit`, `updateUnit`, `deleteUnit`.
+- `src/features/products/api/prices.ts`: agregado `PriceCreate`; `createPrice`.
+- `src/features/products/pages/ProductForm.tsx`: formulario completo con 5 secciones card (Datos del producto, Impuestos, Stock, Estado, Unidades) + sección Precios vigentes (solo edit mode).
+  - Datos: SKU (mono), barcode, nombre, descripción, categoría (select con árbol), base_unit, toggle is_active.
+  - Impuestos: select de tasa IVA (0/5/10%), toggle tax_included_in_price.
+  - Stock: toggle track_stock, umbral low_stock_threshold (condicional).
+  - Unidades: tabla inline con botones Editar/Eliminar por fila; confirmación inline de borrado; modal UnitModal (nombre, factor, flags venta/compra, barcode, estado). Create mode → guarda local; Edit mode → llamadas API inmediatas.
+  - Precios (edit mode): tabla (unidad × moneda activa) con precio vigente; modal PriceModal (precio, vigente_desde=hoy, notas). POST crea nuevo registro append-only. Refresh optimista de la celda afectada.
+  - Scroll anidado: `flex h-full flex-col` + `form flex-1 overflow-y-auto` conforme a common-patterns.md.
+  - Create flow: POST product → POST cada unidad local secuencialmente → navegar a /productos.
+  - Edit flow: PATCH product → navegar. Unidades y precios se guardan inmediatamente.
+  - parseApiError: parsea JSON o retorna err.message directo. Banner de error API en rojo.
+- `App.tsx`: `/productos/nuevo` y `/productos/:id` → `ProductForm`.
+- `tsc --noEmit` pasa sin errores.
+
+### Bloque 3.5 — UI lista de productos (2026-05-27)
+
+- `src/features/products/api/products.ts`: `ProductOut`, `ProductListOut`, `ProductListParams`; `fetchProducts` con todos los params de paginación y filtros.
+- `src/features/products/api/categories.ts`: `CategoryTreeNode`; `fetchCategoryTree`, `buildCategoryMap` (id → nombre), `flattenTree` (lista plana con sangría para dropdown).
+- `src/features/products/api/units.ts`: `ProductUnitOut`; `fetchUnits(productId)`.
+- `src/features/products/api/prices.ts`: `PriceOut`; `fetchPriceHistory(productId, unitId, currencyCode)`.
+- `src/features/products/hooks/useProducts.ts`: hook con debounce 300ms; estado (data, loading, error, page, search, categoryId, showInactive); usa `GET /products?...` para todo (servidor maneja paginación, search ILIKE, filtro categoría, filtro is_active). Resetea page=1 al cambiar filtros.
+- `src/features/products/pages/ProductsList.tsx`: tabla 7 columnas — SKU (mono text-xs), Nombre+barcode, Categoría (de categoryMap), Unidad base, Precio PYG (tabular-nums, enrichment paralelo post-load), Estado (success/muted), Acciones (icono Pencil). Filtros: search con icono Search, select de categorías con flattenTree, checkbox "Mostrar inactivos". Estado vacío con icono Package. Paginación server-side idéntica a contactos.
+- Enriquecimiento de precios: `useEffect` corriendo tras cada cambio de `data`; para cada producto hace `fetchUnits` + `fetchPriceHistory('PYG')` en paralelo con `Promise.allSettled`; filtra `effective_from <= today` client-side; columna muestra `…` (loading), `₲ N.NNN` (precio), o `—` (sin precio).
+- `App.tsx`: rutas `/productos` → `ProductsList`, `/productos/nuevo` y `/productos/:id` → `Placeholder`.
+- `tsc --noEmit` pasa sin errores.
+
+### Bloque 3.4 — Backend precios (2026-05-27)
+
+- `app/schemas/prices.py`: `PriceCreate` (id requerido, currency_code 3 chars, price >= 0, effective_from date, notes opcional), `PriceOut`.
+- `app/services/price_service.py`: append-only, 1 excepción.
+  - `get_current_price(db, product_unit_id, currency_code)`: mayor `effective_from <= today`. Retorna `None` si no hay precio vigente.
+  - `add_price(db, product_unit_id, *, data, user_id)`: verifica `effective_from >= último effective_from` registrado para esa combinación vía `_get_latest_entry`. Si falla → `PriceDateConflictError(latest_date)`. Primer precio acepta cualquier fecha. Inserta `ProductPrice` append-only.
+  - `get_price_history(db, product_unit_id, currency_code)`: todos los precios de esa combinación ordenados por `effective_from DESC`.
+- `app/api/prices.py`: `POST /{product_id}/units/{unit_id}/prices` (201), `GET /{product_id}/units/{unit_id}/prices` (currency_code requerido como query param). `_get_unit_or_404` verifica producto + unidad antes de delegar. `PriceDateConflictError` → 400 con fecha. `IntegrityError` → 409 (mismo unit+currency+date ya existe).
+- `main.py`: router `prices_router` registrado en `/api/v1/products` (mismo prefix que products y product_units).
+- `app/tests/test_price_service.py`: 15 tests — TestGetCurrentPrice (3), TestAddPrice (8), TestGetPriceHistory (4). Todos pasan.
+- Suite completa: **129 tests, todos pasan**.
 
 ### Bloque 3.3 — Backend unidades de producto (2026-05-26)
 

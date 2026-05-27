@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.inventory import StockAdjustmentItem
-from app.models.products import ProductPrice, ProductUnit
+from app.models.products import Product, ProductPrice, ProductUnit
 from app.models.purchases import PurchaseItem
 from app.models.sales import SaleItem
 from app.schemas.product_units import ProductUnitCreate, ProductUnitUpdate
@@ -47,7 +47,12 @@ class ProductUnitNoDefaultError(Exception):
 async def get_units(db: AsyncSession, product_id: UUID) -> list[ProductUnit]:
     result = await db.execute(
         select(ProductUnit)
-        .where(ProductUnit.product_id == product_id)
+        .join(Product, ProductUnit.product_id == Product.id)
+        .where(
+            ProductUnit.product_id == product_id,
+            ProductUnit.is_active == True,  # noqa: E712
+            Product.deleted_at.is_(None),
+        )
         .order_by(ProductUnit.unit_name)
     )
     return list(result.scalars().all())
@@ -60,6 +65,7 @@ async def get_unit(
         select(ProductUnit).where(
             ProductUnit.id == unit_id,
             ProductUnit.product_id == product_id,
+            ProductUnit.is_active == True,  # noqa: E712
         )
     )
     return result.scalar_one_or_none()
@@ -95,6 +101,7 @@ async def _clear_default_flag(
     """Find and clear a default flag from its current holder (excluding exclude_id)."""
     stmt = select(ProductUnit).where(
         ProductUnit.product_id == product_id,
+        ProductUnit.is_active == True,  # noqa: E712
         getattr(ProductUnit, flag_name) == True,  # noqa: E712
     )
     if exclude_id is not None:
@@ -186,8 +193,8 @@ async def delete_unit(
     if unit.factor_to_base == Decimal("1"):
         raise ProductUnitBaseUnitDeleteError()
 
-    # Rule 3: unit referenced in transactions cannot be removed
+    # Rule 3: unit referenced in transactions cannot be deactivated
     if await _has_references(db, unit_id):
         raise ProductUnitHasReferencesError()
 
-    db.delete(unit)
+    unit.is_active = False

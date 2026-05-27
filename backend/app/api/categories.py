@@ -13,6 +13,7 @@ from app.schemas.categories import CategoryCreate, CategoryOut, CategoryTreeNode
 from app.services import category_service
 from app.services.category_service import (
     CategoryCycleError,
+    CategoryHasChildrenError,
     CategoryHasProductsError,
     CategoryNotFoundError,
     CategoryParentNotFoundError,
@@ -139,6 +140,11 @@ async def delete_category(
         await category_service.delete_category(db, category_id)
     except CategoryNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoría no encontrada")
+    except CategoryHasChildrenError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede eliminar: la categoría tiene subcategorías. Eliminá las subcategorías primero.",
+        )
     except CategoryHasProductsError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

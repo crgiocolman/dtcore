@@ -317,3 +317,20 @@ Cuando se tome una decisión que merezca ir a `CLAUDE.md` como regla, agregarla 
 
 **Trade-off aceptado:** [Qué estamos resignando — opcional pero recomendado]
 ```
+
+---
+
+## UNIQUE con soft delete: índices parciales
+
+**Decisión:** Todos los `UNIQUE` en tablas con soft delete (`deleted_at`) se implementan como índices parciales PostgreSQL `WHERE deleted_at IS NULL`, no como constraints convencionales.
+
+**Por qué:** Un `UniqueConstraint` o un índice `UNIQUE` sin cláusula `WHERE` incluye los registros con `deleted_at != null`. Cuando el servicio hace un soft-delete y luego se intenta crear un nuevo registro con el mismo valor, el chequeo a nivel aplicación (`_check_sku_unique`, etc.) filtra por `deleted_at IS NULL` y no encuentra conflicto — pero el índice de la DB sí lo encuentra y lanza `IntegrityError`. El resultado es un 409 confuso aunque el usuario tiene razón en que no hay duplicado activo.
+
+**Columnas afectadas:**
+- `products.sku` → `uq_products_sku_active` (`WHERE deleted_at IS NULL`)
+- `products.barcode` → `uq_products_barcode_active` (`WHERE barcode IS NOT NULL AND deleted_at IS NULL`)
+- `product_categories.name + parent_id` → `uq_product_categories_name_parent_active` (`WHERE deleted_at IS NULL`)
+
+`contacts.document_number` no tiene UNIQUE constraint (es nullable y de múltiples formatos) → no aplica.
+
+**Trade-off aceptado:** Dos registros borrados con el mismo valor conviven sin conflicto. Es el comportamiento correcto: el historial no se destruye.
