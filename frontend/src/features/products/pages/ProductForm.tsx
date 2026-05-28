@@ -19,6 +19,7 @@ import {
 } from '../api/units'
 import { createPrice, fetchPriceHistory, type PriceOut } from '../api/prices'
 import { fetchCurrencies, type CurrencyOut } from '../../admin/api/currencies'
+import { fetchUnitCatalog, type UnitCatalogOut } from '../../admin/api/unit_catalog'
 
 // ---- Helpers ----
 
@@ -242,7 +243,7 @@ function ReactivateModal({
 // ---- Unit modal ----
 
 interface UnitFormState {
-  unit_name: string
+  unit_catalog_id: string
   factor_to_base: string
   is_default_sale_unit: boolean
   is_default_purchase_unit: boolean
@@ -252,7 +253,7 @@ interface UnitFormState {
 type UnitFormErrors = Partial<Record<keyof UnitFormState, string>>
 
 const DEFAULT_UNIT_FORM: UnitFormState = {
-  unit_name: '',
+  unit_catalog_id: '',
   factor_to_base: '1',
   is_default_sale_unit: false,
   is_default_purchase_unit: false,
@@ -263,12 +264,14 @@ function UnitModal({
   initial,
   factorLocked,
   saving,
+  unitCatalog,
   onSave,
   onClose,
 }: {
   initial: UnitFormState
   factorLocked: boolean
   saving: boolean
+  unitCatalog: UnitCatalogOut[]
   onSave: (data: UnitFormState) => void
   onClose: () => void
 }) {
@@ -282,7 +285,7 @@ function UnitModal({
 
   const validate = (): boolean => {
     const errs: UnitFormErrors = {}
-    if (!form.unit_name.trim()) errs.unit_name = 'Campo requerido'
+    if (!form.unit_catalog_id) errs.unit_catalog_id = 'Campo requerido'
     const factor = parseFloat(form.factor_to_base)
     if (isNaN(factor) || factor <= 0) errs.factor_to_base = 'Debe ser mayor a 0'
     setErrors(errs)
@@ -297,7 +300,7 @@ function UnitModal({
       <div className="card w-full max-w-md space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-text-primary">
-            {initial.unit_name ? 'Editar unidad' : 'Agregar unidad'}
+            {initial.unit_catalog_id ? 'Editar unidad' : 'Agregar unidad'}
           </h3>
           <button type="button" onClick={onClose} className="btn-ghost p-1">
             <X className="h-5 w-5" />
@@ -306,16 +309,21 @@ function UnitModal({
 
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <label className="label">Nombre de unidad</label>
-            <input
-              className={`input ${errors.unit_name ? 'border-danger-500 focus:ring-danger-500' : ''}`}
-              type="text"
-              placeholder="ej. Caja, Docena, kg"
-              value={form.unit_name}
-              onChange={(e) => set('unit_name', e.target.value)}
-            />
-            {errors.unit_name && (
-              <p className="mt-1 text-xs text-danger-500">{errors.unit_name}</p>
+            <label className="label">Unidad</label>
+            <select
+              className={`input ${errors.unit_catalog_id ? 'border-danger-500 focus:ring-danger-500' : ''}`}
+              value={form.unit_catalog_id}
+              onChange={(e) => set('unit_catalog_id', e.target.value)}
+            >
+              <option value="">Seleccionar unidad...</option>
+              {unitCatalog.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.symbol})
+                </option>
+              ))}
+            </select>
+            {errors.unit_catalog_id && (
+              <p className="mt-1 text-xs text-danger-500">{errors.unit_catalog_id}</p>
             )}
           </div>
 
@@ -527,12 +535,11 @@ interface ProductFormState {
   name: string
   description: string
   category_id: string
-  base_unit: string
+  base_unit_id: string
   tax_rate: string
   tax_included_in_price: boolean
   track_stock: boolean
   low_stock_threshold: string
-  is_active: boolean
 }
 
 type ProductFormErrors = Partial<Record<keyof ProductFormState, string>>
@@ -543,12 +550,11 @@ const DEFAULT_FORM: ProductFormState = {
   name: '',
   description: '',
   category_id: '',
-  base_unit: '',
+  base_unit_id: '',
   tax_rate: '10.00',
   tax_included_in_price: true,
   track_stock: true,
   low_stock_threshold: '',
-  is_active: true,
 }
 
 function fromProduct(p: ProductOut): ProductFormState {
@@ -558,19 +564,19 @@ function fromProduct(p: ProductOut): ProductFormState {
     name: p.name,
     description: p.description ?? '',
     category_id: p.category_id ?? '',
-    base_unit: p.base_unit,
+    base_unit_id: p.base_unit_id,
     tax_rate: p.tax_rate,
     tax_included_in_price: p.tax_included_in_price,
     track_stock: p.track_stock,
     low_stock_threshold: p.low_stock_threshold ?? '',
-    is_active: p.is_active,
   }
 }
 
 // For create mode: a unit managed locally before product is saved
 interface LocalUnit {
   id: string // client-generated UUID
-  unit_name: string
+  unit_catalog_id: string
+  unit_catalog: UnitCatalogOut | null
   factor_to_base: string
   is_default_sale_unit: boolean
   is_default_purchase_unit: boolean
@@ -578,13 +584,22 @@ interface LocalUnit {
   is_active: true
 }
 
-function localUnitFromForm(id: string, f: UnitFormState): LocalUnit {
-  return { id, ...f, is_active: true }
+function localUnitFromForm(id: string, f: UnitFormState, catalog: UnitCatalogOut[]): LocalUnit {
+  return {
+    id,
+    unit_catalog_id: f.unit_catalog_id,
+    unit_catalog: catalog.find((c) => c.id === f.unit_catalog_id) ?? null,
+    factor_to_base: f.factor_to_base,
+    is_default_sale_unit: f.is_default_sale_unit,
+    is_default_purchase_unit: f.is_default_purchase_unit,
+    barcode: f.barcode,
+    is_active: true,
+  }
 }
 
 function unitFormFromLocal(u: LocalUnit): UnitFormState {
   return {
-    unit_name: u.unit_name,
+    unit_catalog_id: u.unit_catalog_id,
     factor_to_base: u.factor_to_base,
     is_default_sale_unit: u.is_default_sale_unit,
     is_default_purchase_unit: u.is_default_purchase_unit,
@@ -594,7 +609,7 @@ function unitFormFromLocal(u: LocalUnit): UnitFormState {
 
 function unitFormFromSaved(u: ProductUnitOut): UnitFormState {
   return {
-    unit_name: u.unit_name,
+    unit_catalog_id: u.unit_catalog_id,
     factor_to_base: u.factor_to_base,
     is_default_sale_unit: u.is_default_sale_unit,
     is_default_purchase_unit: u.is_default_purchase_unit,
@@ -649,6 +664,12 @@ export function ProductForm() {
     conflictingUnitId: string
   } | null>(null)
   const [reactivating, setReactivating] = useState(false)
+
+  // Unit catalog
+  const [unitCatalog, setUnitCatalog] = useState<UnitCatalogOut[]>([])
+  useEffect(() => {
+    fetchUnitCatalog(true).then(setUnitCatalog).catch(() => {})
+  }, [])
 
   // Currencies + prices (edit mode only)
   const [currencies, setCurrencies] = useState<CurrencyOut[]>([])
@@ -720,7 +741,7 @@ export function ProductForm() {
     const errs: ProductFormErrors = {}
     if (!form.sku.trim()) errs.sku = 'Campo requerido'
     if (!form.name.trim()) errs.name = 'Campo requerido'
-    if (!form.base_unit.trim()) errs.base_unit = 'Campo requerido'
+    if (!form.base_unit_id) errs.base_unit_id = 'Campo requerido'
     const rate = parseFloat(form.tax_rate)
     if (isNaN(rate) || ![0, 5, 10].includes(rate)) errs.tax_rate = 'Debe ser 0, 5 o 10'
     if (form.track_stock && form.low_stock_threshold !== '') {
@@ -743,7 +764,7 @@ export function ProductForm() {
       name: form.name.trim(),
       description: form.description.trim() || null,
       category_id: form.category_id || null,
-      base_unit: form.base_unit.trim(),
+      base_unit_id: form.base_unit_id,
       track_stock: form.track_stock,
       tax_rate: form.tax_rate,
       tax_included_in_price: form.tax_included_in_price,
@@ -751,7 +772,6 @@ export function ProductForm() {
         form.track_stock && form.low_stock_threshold.trim()
           ? form.low_stock_threshold.trim()
           : null,
-      is_active: form.is_active,
     }
 
     try {
@@ -765,7 +785,7 @@ export function ProductForm() {
         for (const u of localUnits) {
           await createUnit(productId, {
             id: u.id,
-            unit_name: u.unit_name,
+            unit_catalog_id: u.unit_catalog_id,
             factor_to_base: u.factor_to_base,
             is_default_sale_unit: u.is_default_sale_unit,
             is_default_purchase_unit: u.is_default_purchase_unit,
@@ -804,12 +824,12 @@ export function ProductForm() {
     if (!isEdit) {
       // Create mode: update local state
       if (unitModal.mode === 'add') {
-        const newUnit = localUnitFromForm(crypto.randomUUID(), data)
+        const newUnit = localUnitFromForm(crypto.randomUUID(), data, unitCatalog)
         setLocalUnits((prev) => [...prev, newUnit])
       } else {
         setLocalUnits((prev) =>
           prev.map((u) =>
-            u.id === unitModal.editId ? localUnitFromForm(u.id, data) : u,
+            u.id === unitModal.editId ? localUnitFromForm(u.id, data, unitCatalog) : u,
           ),
         )
       }
@@ -823,7 +843,7 @@ export function ProductForm() {
       if (unitModal.mode === 'add') {
         const created = await createUnit(id!, {
           id: crypto.randomUUID(),
-          unit_name: data.unit_name,
+          unit_catalog_id: data.unit_catalog_id,
           factor_to_base: data.factor_to_base,
           is_default_sale_unit: data.is_default_sale_unit,
           is_default_purchase_unit: data.is_default_purchase_unit,
@@ -837,7 +857,7 @@ export function ProductForm() {
         setUnitModal(null)
       } else {
         const updated = await updateUnit(id!, unitModal.editId!, {
-          unit_name: data.unit_name,
+          unit_catalog_id: data.unit_catalog_id,
           factor_to_base: data.factor_to_base,
           is_default_sale_unit: data.is_default_sale_unit,
           is_default_purchase_unit: data.is_default_purchase_unit,
@@ -849,7 +869,8 @@ export function ProductForm() {
     } catch (err) {
       const structured = parseApiErrorStructured(err)
       if (structured.code === 'exists_inactive' && structured.unit_id) {
-        setReactivateModal({ unitName: data.unit_name, conflictingUnitId: structured.unit_id })
+        const catalogName = unitCatalog.find((c) => c.id === data.unit_catalog_id)?.name ?? data.unit_catalog_id
+        setReactivateModal({ unitName: catalogName, conflictingUnitId: structured.unit_id })
         setUnitModal(null)
       } else {
         setUnitError(structured.message)
@@ -973,7 +994,7 @@ export function ProductForm() {
         .flatMap((u) =>
           currencies.map((c) => ({
             unitId: u.id,
-            unitName: u.unit_name,
+            unitName: u.unit_catalog?.name ?? u.unit_catalog_id,
             currencyCode: c.code,
             currencySymbol: c.symbol,
             decimals: c.decimal_places,
@@ -1117,19 +1138,24 @@ export function ProductForm() {
               </div>
 
               <div>
-                <label className="label" htmlFor="base_unit">
+                <label className="label" htmlFor="base_unit_id">
                   Unidad base <span className="text-danger-500">*</span>
                 </label>
-                <input
-                  id="base_unit"
-                  className={`input ${errors.base_unit ? 'border-danger-500 focus:ring-danger-500' : ''}`}
-                  type="text"
-                  placeholder="ej. unidad, kg, litro"
-                  value={form.base_unit}
-                  onChange={(e) => set('base_unit', e.target.value)}
-                />
-                {errors.base_unit && (
-                  <p className="mt-1 text-xs text-danger-500">{errors.base_unit}</p>
+                <select
+                  id="base_unit_id"
+                  className={`input ${errors.base_unit_id ? 'border-danger-500 focus:ring-danger-500' : ''}`}
+                  value={form.base_unit_id}
+                  onChange={(e) => set('base_unit_id', e.target.value)}
+                >
+                  <option value="">Seleccionar unidad base...</option>
+                  {unitCatalog.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.symbol})
+                    </option>
+                  ))}
+                </select>
+                {errors.base_unit_id && (
+                  <p className="mt-1 text-xs text-danger-500">{errors.base_unit_id}</p>
                 )}
               </div>
             </div>
@@ -1208,17 +1234,6 @@ export function ProductForm() {
             )}
           </div>
 
-          {/* Estado */}
-          <div className="card space-y-4">
-            <h2 className="text-base font-medium text-text-primary">Estado</h2>
-            <div className="flex items-center gap-3">
-              <Toggle checked={form.is_active} onChange={(v) => set('is_active', v)} />
-              <span className="text-sm text-text-secondary">
-                {form.is_active ? 'Producto activo' : 'Producto inactivo'}
-              </span>
-            </div>
-          </div>
-
           {/* Unidades */}
           <div className="card space-y-4">
             <div className="flex items-center justify-between">
@@ -1274,7 +1289,11 @@ export function ProductForm() {
                           key={u.id}
                           className={!u.is_active ? 'opacity-60' : undefined}
                         >
-                          <td className="py-2 pr-4 text-text-primary">{u.unit_name}</td>
+                          <td className="py-2 pr-4 text-text-primary">
+                            {u.unit_catalog
+                              ? `${u.unit_catalog.name} (${u.unit_catalog.symbol})`
+                              : u.unit_catalog_id}
+                          </td>
                           <td className="py-2 pr-4 text-right tabular-nums text-text-secondary">
                             {u.factor_to_base}
                           </td>
@@ -1326,7 +1345,7 @@ export function ProductForm() {
                                 <button
                                   type="button"
                                   className="btn-ghost px-2 py-1"
-                                  aria-label={`Editar ${u.unit_name}`}
+                                  aria-label={`Editar ${u.unit_catalog?.name ?? u.unit_catalog_id}`}
                                   onClick={() =>
                                     setUnitModal({
                                       mode: 'edit',
@@ -1351,7 +1370,7 @@ export function ProductForm() {
                                   <button
                                     type="button"
                                     className="btn-ghost px-2 py-1 text-danger-500 hover:text-danger-500"
-                                    aria-label={`Eliminar ${u.unit_name}`}
+                                    aria-label={`Eliminar ${u.unit_catalog?.name ?? u.unit_catalog_id}`}
                                     onClick={() => {
                                       setUnitError(null)
                                       setDeleteUnitId(u.id)
@@ -1474,6 +1493,7 @@ export function ProductForm() {
           initial={unitModal.initial}
           factorLocked={unitModal.factorLocked}
           saving={savingUnit}
+          unitCatalog={unitCatalog}
           onSave={handleUnitSave}
           onClose={() => {
             setUnitModal(null)

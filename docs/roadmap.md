@@ -167,6 +167,13 @@ Fases organizadas verticalmente por módulo end-to-end (backend + frontend junto
   - Página `/admin/categorias` con árbol jerárquico
   - CRUD inline
 
+- **3.8 — Catálogo de unidades** ✅ 2026-05-28
+  - Nueva tabla `units_catalog` con enum `unit_type` y 12 seeds fijos
+  - Migración Alembic: backfill `products.base_unit` → `base_unit_id` y `product_units.unit_name` → `unit_catalog_id`
+  - Backend completo: service, API (`/api/v1/units`), seed, actualización de services y APIs de productos/unidades
+  - Frontend: selectores de catálogo en `ProductForm.tsx`, nueva página `/admin/units`
+  - Documentado en `design-decisions.md`: catálogo vs texto libre, data semi-maestra vs operativa
+
 **Entregable:** catálogo de productos completo. El cliente puede cargar todos sus productos con sus distintas unidades y precios. Aún no se ve stock real porque no hay compras todavía.
 
 ---

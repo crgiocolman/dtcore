@@ -96,3 +96,11 @@ class PaymentMethod(str, Enum):
     CARD_CREDIT = "card_credit"
     CHECK = "check"
     OTHER = "other"
+
+
+class UnitType(str, Enum):
+    WEIGHT = "weight"
+    LENGTH = "length"
+    VOLUME = "volume"
+    COUNT = "count"
+    PACKAGE = "package"

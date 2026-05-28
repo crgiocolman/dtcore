@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from app.schemas.unit_catalog import UnitCatalogOut
+
 
 class ProductCreate(BaseModel):
     id: UUID
@@ -12,12 +14,11 @@ class ProductCreate(BaseModel):
     name: str
     description: str | None = None
     category_id: UUID | None = None
-    base_unit: str
+    base_unit_id: UUID
     track_stock: bool = True
     tax_rate: Decimal = Decimal("10.00")
     tax_included_in_price: bool = True
     low_stock_threshold: Decimal | None = None
-    is_active: bool = True
 
 
 class ProductUpdate(BaseModel):
@@ -26,12 +27,11 @@ class ProductUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     category_id: UUID | None = None
-    base_unit: str | None = None
+    base_unit_id: UUID | None = None
     track_stock: bool | None = None
     tax_rate: Decimal | None = None
     tax_included_in_price: bool | None = None
     low_stock_threshold: Decimal | None = None
-    is_active: bool | None = None
 
 
 class ProductOut(BaseModel):
@@ -41,12 +41,12 @@ class ProductOut(BaseModel):
     name: str
     description: str | None
     category_id: UUID | None
-    base_unit: str
+    base_unit_id: UUID
+    base_unit_catalog: UnitCatalogOut | None = None
     track_stock: bool
     tax_rate: Decimal
     tax_included_in_price: bool
     low_stock_threshold: Decimal | None
-    is_active: bool
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
@@ -67,9 +67,9 @@ class ProductSearchResult(BaseModel):
     sku: str
     barcode: str | None
     name: str
-    base_unit: str
+    base_unit_id: UUID
+    base_unit_catalog: UnitCatalogOut | None = None
     tax_rate: Decimal
     tax_included_in_price: bool
-    is_active: bool
     category_id: UUID | None
     similarity: float

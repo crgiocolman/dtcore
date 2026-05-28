@@ -63,12 +63,15 @@ class Product(TimestampMixin, SoftDeleteMixin, AuditUserMixin, Base):
         ),
         nullable=True,
     )
-    base_unit = Column(String(20), nullable=False)
+    base_unit_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("units_catalog.id", ondelete="RESTRICT", name="fk_products_base_unit_id"),
+        nullable=False,
+    )
     track_stock = Column(Boolean, nullable=False, default=True, server_default="true")
     tax_rate = Column(Numeric(5, 2), nullable=False, default=10, server_default="10.00")
     tax_included_in_price = Column(Boolean, nullable=False, default=True, server_default="true")
     low_stock_threshold = Column(Numeric(18, 4), nullable=True)
-    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
 
     __table_args__ = (
         CheckConstraint("tax_rate >= 0 AND tax_rate <= 100", name="ck_products_tax_rate_range"),
@@ -86,7 +89,7 @@ class Product(TimestampMixin, SoftDeleteMixin, AuditUserMixin, Base):
         ),
         Index("ix_products_name", "name"),
         Index("ix_products_category_id", "category_id"),
-        Index("ix_products_is_active", "is_active"),
+        Index("ix_products_base_unit_id", "base_unit_id"),
     )
 
 
@@ -99,7 +102,11 @@ class ProductUnit(TimestampMixin, Base):
         ForeignKey("products.id", ondelete="CASCADE", name="fk_product_units_product_id"),
         nullable=False,
     )
-    unit_name = Column(String(30), nullable=False)
+    unit_catalog_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("units_catalog.id", ondelete="RESTRICT", name="fk_product_units_unit_catalog_id"),
+        nullable=False,
+    )
     factor_to_base = Column(Numeric(18, 6), nullable=False)
     is_default_sale_unit = Column(Boolean, nullable=False, default=False, server_default="false")
     is_default_purchase_unit = Column(Boolean, nullable=False, default=False, server_default="false")
@@ -107,7 +114,7 @@ class ProductUnit(TimestampMixin, Base):
     is_active = Column(Boolean, nullable=False, default=True, server_default="true")
 
     __table_args__ = (
-        UniqueConstraint("product_id", "unit_name", name="uq_product_units_product_unit_name"),
+        UniqueConstraint("product_id", "unit_catalog_id", name="uq_product_units_product_catalog_unit"),
         CheckConstraint("factor_to_base > 0", name="ck_product_units_factor_positive"),
         Index("ix_product_units_product_id", "product_id"),
         Index(

@@ -4,24 +4,24 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.unit_catalog import UnitCatalogOut
+
 
 class ProductUnitCreate(BaseModel):
     id: UUID
-    unit_name: str = Field(..., max_length=30)
+    unit_catalog_id: UUID
     factor_to_base: Decimal = Field(..., gt=0)
     is_default_sale_unit: bool = False
     is_default_purchase_unit: bool = False
     barcode: str | None = Field(None, max_length=50)
-    is_active: bool = True
 
 
 class ProductUnitUpdate(BaseModel):
-    unit_name: str | None = Field(None, max_length=30)
+    unit_catalog_id: UUID | None = None
     factor_to_base: Decimal | None = Field(None, gt=0)
     is_default_sale_unit: bool | None = None
     is_default_purchase_unit: bool | None = None
     barcode: str | None = None
-    is_active: bool | None = None
 
 
 class ProductUnitOut(BaseModel):
@@ -29,7 +29,8 @@ class ProductUnitOut(BaseModel):
 
     id: UUID
     product_id: UUID
-    unit_name: str
+    unit_catalog_id: UUID
+    unit_catalog: UnitCatalogOut | None = None
     factor_to_base: Decimal
     is_default_sale_unit: bool
     is_default_purchase_unit: bool

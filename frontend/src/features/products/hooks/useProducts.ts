@@ -14,11 +14,11 @@ interface UseProductsResult extends UseProductsState {
   page: number
   search: string
   categoryId: string
-  showInactive: boolean
+  showDeleted: boolean
   setPage: (p: number) => void
   setSearch: (s: string) => void
   setCategoryId: (id: string) => void
-  setShowInactive: (v: boolean) => void
+  setShowDeleted: (v: boolean) => void
   reload: () => void
 }
 
@@ -26,7 +26,7 @@ export function useProducts(): UseProductsResult {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
-  const [showInactive, setShowInactive] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
   const [state, setState] = useState<UseProductsState>({ data: null, loading: true, error: null })
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -49,13 +49,13 @@ export function useProducts(): UseProductsResult {
         page_size: PAGE_SIZE,
         search: search || undefined,
         category_id: categoryId || undefined,
-        is_active: showInactive ? undefined : true,
+        include_deleted: showDeleted || undefined,
       })
     }, 300)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [page, search, categoryId, showInactive, load])
+  }, [page, search, categoryId, showDeleted, load])
 
   const handleSetSearch = useCallback((s: string) => {
     setSearch(s)
@@ -67,8 +67,8 @@ export function useProducts(): UseProductsResult {
     setPage(1)
   }, [])
 
-  const handleSetShowInactive = useCallback((v: boolean) => {
-    setShowInactive(v)
+  const handleSetShowDeleted = useCallback((v: boolean) => {
+    setShowDeleted(v)
     setPage(1)
   }, [])
 
@@ -78,20 +78,20 @@ export function useProducts(): UseProductsResult {
       page_size: PAGE_SIZE,
       search: search || undefined,
       category_id: categoryId || undefined,
-      is_active: showInactive ? undefined : true,
+      include_deleted: showDeleted || undefined,
     })
-  }, [page, search, categoryId, showInactive, load])
+  }, [page, search, categoryId, showDeleted, load])
 
   return {
     ...state,
     page,
     search,
     categoryId,
-    showInactive,
+    showDeleted,
     setPage,
     setSearch: handleSetSearch,
     setCategoryId: handleSetCategoryId,
-    setShowInactive: handleSetShowInactive,
+    setShowDeleted: handleSetShowDeleted,
     reload,
   }
 }

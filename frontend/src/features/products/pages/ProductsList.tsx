@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Package, Pencil, Plus, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Package, Pencil, Plus, RotateCcw, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -9,6 +9,7 @@ import {
 } from '../api/categories'
 import { fetchPriceHistory } from '../api/prices'
 import { fetchUnits } from '../api/units'
+import { restoreProduct } from '../api/products'
 import { useProducts } from '../hooks/useProducts'
 
 function formatPYG(value: string): string {
@@ -22,7 +23,7 @@ type PriceEntry = string | null | undefined // undefined = loading, null = not f
 
 export function ProductsList() {
   const navigate = useNavigate()
-  const { data, loading, error, page, search, categoryId, showInactive, setPage, setSearch, setCategoryId, setShowInactive } =
+  const { data, loading, error, page, search, categoryId, showDeleted, setPage, setSearch, setCategoryId, setShowDeleted, reload } =
     useProducts()
 
   const items = data?.items ?? []
@@ -72,7 +73,42 @@ export function ProductsList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
 
-  const hasFilters = search || categoryId || showInactive
+  const [restoring, setRestoring] = useState<string | null>(null)
+  const [restoreConflict, setRestoreConflict] = useState<{
+    message: string
+    conflicting_product_id: string
+  } | null>(null)
+
+  async function handleRestore(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    setRestoring(id)
+    try {
+      await restoreProduct(id)
+      reload()
+    } catch (err) {
+      try {
+        const parsed = JSON.parse(err instanceof Error ? err.message : '{}')
+        const detail = parsed?.detail
+        if (
+          detail?.code === 'sku_conflict_on_restore' ||
+          detail?.code === 'barcode_conflict_on_restore'
+        ) {
+          setRestoreConflict({
+            message: detail.message,
+            conflicting_product_id: detail.conflicting_product_id,
+          })
+          return
+        }
+      } catch {
+        // fall through to generic
+      }
+      alert('Error al restaurar el producto. Intentá de nuevo.')
+    } finally {
+      setRestoring(null)
+    }
+  }
+
+  const hasFilters = search || categoryId || showDeleted
 
   return (
     <div className="flex h-full flex-col">
@@ -119,10 +155,10 @@ export function ProductsList() {
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-border accent-primary-500"
-            checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
+            checked={showDeleted}
+            onChange={(e) => setShowDeleted(e.target.checked)}
           />
-          <span className="text-sm text-text-secondary">Mostrar inactivos</span>
+          <span className="text-sm text-text-secondary">Mostrar eliminados</span>
         </label>
       </div>
 
@@ -197,7 +233,9 @@ export function ProductsList() {
                             <span className="text-text-muted">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-text-secondary">{p.base_unit}</td>
+                        <td className="px-4 py-3 text-text-secondary">
+                          {p.base_unit_catalog ? `${p.base_unit_catalog.name} (${p.base_unit_catalog.symbol})` : '—'}
+                        </td>
                         <td className="px-4 py-3 text-right tabular-nums">
                           {priceEntry === undefined ? (
                             <span className="text-text-muted text-xs">…</span>
@@ -208,25 +246,35 @@ export function ProductsList() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <span
-                            className={`text-xs font-medium ${
-                              p.is_active ? 'text-success-500' : 'text-text-muted'
-                            }`}
-                          >
-                            {p.is_active ? 'Activo' : 'Inactivo'}
-                          </span>
+                          {p.deleted_at && (
+                            <span className="rounded-full bg-danger-500/15 px-2 py-0.5 text-xs font-medium text-danger-400">
+                              Eliminado
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            className="btn-ghost px-2 py-1"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              navigate(`/productos/${p.id}`)
-                            }}
-                            aria-label={`Editar ${p.name}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
+                          {p.deleted_at ? (
+                            <button
+                              className="btn-ghost px-2 py-1"
+                              onClick={(e) => handleRestore(p.id, e)}
+                              disabled={restoring === p.id}
+                              aria-label={`Restaurar ${p.name}`}
+                              title="Restaurar producto"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </button>
+                          ) : (
+                            <button
+                              className="btn-ghost px-2 py-1"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                navigate(`/productos/${p.id}`)
+                              }}
+                              aria-label={`Editar ${p.name}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     )
@@ -264,6 +312,32 @@ export function ProductsList() {
           </>
         )}
       </div>
+
+      {restoreConflict && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-md space-y-4 p-6">
+            <h3 className="text-base font-semibold text-text-primary">No se puede restaurar</h3>
+            <p className="text-sm text-text-secondary">{restoreConflict.message}</p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn-secondary"
+                onClick={() => setRestoreConflict(null)}
+              >
+                Cerrar
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setRestoreConflict(null)
+                  navigate(`/productos/${restoreConflict.conflicting_product_id}`)
+                }}
+              >
+                Ver producto activo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

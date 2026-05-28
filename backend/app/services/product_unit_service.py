@@ -10,6 +10,7 @@ from app.models.inventory import StockAdjustmentItem
 from app.models.products import Product, ProductPrice, ProductUnit
 from app.models.purchases import PurchaseItem
 from app.models.sales import SaleItem
+from app.models.unit_catalog import UnitCatalog
 from app.schemas.product_units import ProductUnitCreate, ProductUnitUpdate
 
 logger = logging.getLogger(__name__)
@@ -44,10 +45,10 @@ class ProductUnitNoDefaultError(Exception):
     pass
 
 
-class ProductUnitNameConflictError(Exception):
-    """A unit with the same name already exists (active or inactive)."""
-    def __init__(self, unit_name: str, existing_is_active: bool, existing_id: UUID):
-        self.unit_name = unit_name
+class ProductUnitCatalogConflictError(Exception):
+    """A unit with the same catalog entry already exists (active or inactive)."""
+    def __init__(self, unit_catalog_id: UUID, existing_is_active: bool, existing_id: UUID):
+        self.unit_catalog_id = unit_catalog_id
         self.existing_is_active = existing_is_active
         self.existing_id = existing_id
 
@@ -59,20 +60,21 @@ class ProductUnitNameConflictError(Exception):
 
 async def get_units(
     db: AsyncSession, product_id: UUID, *, only_active: bool = False
-) -> list[ProductUnit]:
+) -> list[tuple[ProductUnit, UnitCatalog]]:
     stmt = (
-        select(ProductUnit)
+        select(ProductUnit, UnitCatalog)
+        .join(UnitCatalog, ProductUnit.unit_catalog_id == UnitCatalog.id)
         .join(Product, ProductUnit.product_id == Product.id)
         .where(
             ProductUnit.product_id == product_id,
             Product.deleted_at.is_(None),
         )
-        .order_by(ProductUnit.unit_name)
+        .order_by(UnitCatalog.name)
     )
     if only_active:
         stmt = stmt.where(ProductUnit.is_active == True)  # noqa: E712
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    return list(result.tuples().all())
 
 
 async def get_unit(
@@ -171,18 +173,18 @@ async def create_unit(
     *,
     data: ProductUnitCreate,
 ) -> ProductUnit:
-    # Check for name conflict (active or inactive)
+    # Check for catalog conflict (same catalog entry, active or inactive)
     existing = (
         await db.execute(
             select(ProductUnit).where(
                 ProductUnit.product_id == product_id,
-                ProductUnit.unit_name == data.unit_name,
+                ProductUnit.unit_catalog_id == data.unit_catalog_id,
             )
         )
     ).scalar_one_or_none()
     if existing is not None:
-        raise ProductUnitNameConflictError(
-            unit_name=data.unit_name,
+        raise ProductUnitCatalogConflictError(
+            unit_catalog_id=data.unit_catalog_id,
             existing_is_active=existing.is_active,
             existing_id=existing.id,
         )
@@ -196,7 +198,7 @@ async def create_unit(
     unit = ProductUnit(
         id=data.id,
         product_id=product_id,
-        unit_name=data.unit_name,
+        unit_catalog_id=data.unit_catalog_id,
         factor_to_base=data.factor_to_base,
         is_default_sale_unit=data.is_default_sale_unit,
         is_default_purchase_unit=data.is_default_purchase_unit,

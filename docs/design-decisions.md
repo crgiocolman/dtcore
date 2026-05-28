@@ -353,5 +353,39 @@ Si se ocultaran las inactivas, la UI daría la sensación de que la unidad "no e
 
 - La unidad base (`factor_to_base = 1`) no puede inactivarse ni eliminarse.
 - Si se inactiva una unidad que era default de venta o compra, esos flags pasan automáticamente a la unidad base.
-- El UNIQUE constraint `uq_product_units_product_unit_name` es total (sin cláusula `WHERE`) — activas e inactivas compiten por el nombre dentro del mismo producto.
+- El UNIQUE constraint `uq_product_units_product_catalog_unit` es total (sin cláusula `WHERE`) — activas e inactivas compiten por el mismo `unit_catalog_id` dentro del mismo producto.
+
+---
+
+## Catálogo de unidades vs texto libre
+
+**Decisión (Bloque 3.8, 2026-05-28):** `products.base_unit` (VARCHAR) y `product_units.unit_name` (VARCHAR) reemplazados por FKs a `units_catalog` (`base_unit_id` y `unit_catalog_id` respectivamente).
+
+**Por qué:** Texto libre genera "kg", "Kg", "kgs" como valores distintos. Eso rompe consolidación de reportes (stock por unidad, costo promedio ponderado, comparación entre productos). Un catálogo normalizado garantiza que "kilogramo" sea siempre el mismo registro UUID, independientemente de cómo lo tipee cada usuario.
+
+**Por qué antes de Fase 4:** Después de implementar `stock_movements` e `items` de compra/venta, hay FKs hacia `product_units` en cada movimiento. Migrar strings a FKs sobre una tabla con millones de filas es mucho más costoso y riesgoso que hacerlo sobre el catálogo limpio pre-transacciones.
+
+**Downgrade de la migración:** el `downgrade()` restaura strings desde `units_catalog.code`, no desde los valores originales pre-migración. Es un downgrade de emergencia, no de fidelidad de datos.
+
+---
+
+## Data semi-maestra vs operativa: comportamiento de delete
+
+**Decisión:** `units_catalog` y `currencies` son "data semi-maestra" — ciclo de vida largo, modificaciones infrecuentes. La UI expone solo toggle activo/inactivo. El endpoint DELETE existe en la API para uso técnico, pero no está expuesto en el flujo normal de UI.
+
+`product_units` es "data operativa" — puede crearse por error y nunca usarse. La UI expone toggle activo/inactivo **más** hard delete condicional: solo si `can_hard_delete = true` (sin referencias en historial y sin ser unidad base).
+
+**Por qué la distinción:** Un catálogo de unidades tiene referencias cruzadas en muchos productos. Ofrecer hard delete en UI para data semi-maestra invita a errores irrecuperables. Para data operativa reciente (una unidad de producto creada por error hace 5 minutos), el hard delete es la herramienta correcta cuando no hay referencias.
 - `can_hard_delete` se expone en el API por unidad: `True` solo si no tiene referencias Y `factor_to_base != 1`. El frontend muestra el ícono de trash solo para esas unidades.
+
+---
+
+## Productos: solo soft delete, sin estado "inactivo" separado
+
+**Decisión (Bloque 3.9, 2026-05-28):** `products.is_active` eliminado. La única distinción de estado en productos es `deleted_at IS NULL` (activo) vs `deleted_at IS NOT NULL` (eliminado).
+
+**Por qué:** `is_active` nunca tuvo una semántica útil en products distinta de `deleted_at`. Siempre fue `true`. Tener ambos campos generaba confusión: el toggle "Mostrar inactivos" en la UI filtraba por `is_active` pero la eliminación seteaba `deleted_at`, así que los productos eliminados nunca aparecían al activar el toggle — bug conceptual.
+
+**Contraste con `product_units.is_active`:** ahí sí existe la distinción: inactivar una unidad la oculta del POS y de la selección de precios, pero la mantiene en el historial de movimientos. Por eso `product_units` conserva `is_active`.
+
+**Restore:** endpoint `POST /api/v1/products/{id}/restore` setea `deleted_at = null`. Disponible desde la lista con toggle "Mostrar eliminados" activado.

@@ -408,6 +408,31 @@ Cuando un patrón aparece 2+ veces en código, documentarlo acá. Formato:
 [Por qué funciona / qué evita — opcional]
 ```
 
+---
+
+## JSON serialization para JSONB
+
+Cualquier columna `JSONB` en el sistema (ej. `audit_log.changes`) hereda automáticamente el serializer custom definido en `app/database.py`. El engine se crea con `json_serializer=_json_serializer`, que maneja:
+
+- `UUID` → `str(uuid)` (ej. `"550e8400-e29b-41d4-a716-446655440000"`)
+- `datetime` / `date` → `obj.isoformat()`
+- `Decimal` → `str(decimal)`
+
+No hay que hacer nada especial en los services: pasá el dict directamente y el engine lo serializa al escribir a Postgres.
+
+```python
+# Correcto — el engine serializa el UUID automáticamente
+changes = {"base_unit_id": {"old": old_uuid, "new": new_uuid}}  # old_uuid: UUID
+record.changes = changes  # columna JSONB
+
+# Incorrecto — no hagas esto manualmente
+changes = {"base_unit_id": {"old": str(old_uuid), "new": str(new_uuid)}}
+```
+
+Si en el futuro se agrega un tipo nuevo que falle, extender `_json_default` en `app/database.py` (un solo lugar).
+
+---
+
 Patrones que no han aparecido todavía pero se esperan:
 - Estructura de service con `get_or_404`, `create`, `update`, `delete`
 - Estructura de router con dependencias de auth y db

@@ -1,9 +1,13 @@
 import { apiFetch } from '../../../lib/api'
+import type { UnitCatalogOut } from '../../admin/api/unit_catalog'
+
+export type { UnitCatalogOut } from '../../admin/api/unit_catalog'
 
 export interface ProductUnitOut {
   id: string
   product_id: string
-  unit_name: string
+  unit_catalog_id: string
+  unit_catalog: UnitCatalogOut | null
   factor_to_base: string
   is_default_sale_unit: boolean
   is_default_purchase_unit: boolean
@@ -16,7 +20,7 @@ export interface ProductUnitOut {
 
 export interface ProductUnitCreate {
   id: string
-  unit_name: string
+  unit_catalog_id: string
   factor_to_base: string
   is_default_sale_unit: boolean
   is_default_purchase_unit: boolean
@@ -24,7 +28,7 @@ export interface ProductUnitCreate {
 }
 
 export interface ProductUnitUpdate {
-  unit_name?: string
+  unit_catalog_id?: string
   factor_to_base?: string
   is_default_sale_unit?: boolean
   is_default_purchase_unit?: boolean

@@ -3,12 +3,14 @@ import math
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.products import Product
+from app.models.unit_catalog import UnitCatalog
 from app.models.users import User
 from app.schemas.products import (
     ProductCreate,
@@ -17,11 +19,15 @@ from app.schemas.products import (
     ProductSearchResult,
     ProductUpdate,
 )
+from app.schemas.unit_catalog import UnitCatalogOut
 from app.services import product_service
 from app.services.product_service import (
+    BarcodeConflictOnRestoreError,
     ProductBarcodeConflictError,
     ProductNotFoundError,
     ProductSKUConflictError,
+    SKUConflictOnRestoreError,
+    restore_product,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,7 +35,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _to_out(p: Product) -> ProductOut:
+def _to_out(p: Product, catalog: UnitCatalog | None) -> ProductOut:
     return ProductOut(
         id=p.id,
         sku=p.sku,
@@ -37,18 +43,31 @@ def _to_out(p: Product) -> ProductOut:
         name=p.name,
         description=p.description,
         category_id=p.category_id,
-        base_unit=p.base_unit,
+        base_unit_id=p.base_unit_id,
+        base_unit_catalog=UnitCatalogOut.model_validate(catalog) if catalog is not None else None,
         track_stock=p.track_stock,
         tax_rate=p.tax_rate,
         tax_included_in_price=p.tax_included_in_price,
         low_stock_threshold=p.low_stock_threshold,
-        is_active=p.is_active,
         created_at=p.created_at,
         updated_at=p.updated_at,
         deleted_at=p.deleted_at,
         created_by_user_id=p.created_by_user_id,
         updated_by_user_id=p.updated_by_user_id,
     )
+
+
+async def _fetch_catalog_map(
+    db: AsyncSession, products: list[Product]
+) -> dict[UUID, UnitCatalog]:
+    """Batch fetch UnitCatalog entries for a list of products."""
+    ids = list({p.base_unit_id for p in products})
+    if not ids:
+        return {}
+    rows = (
+        await db.execute(select(UnitCatalog).where(UnitCatalog.id.in_(ids)))
+    ).scalars().all()
+    return {c.id: c for c in rows}
 
 
 # /search MUST be declared before /{product_id} to avoid routing "search" as a UUID
@@ -59,16 +78,18 @@ async def search_products(
     _: User = Depends(get_current_user),
 ):
     results = await product_service.search_products(db, q)
+    catalog_map = await _fetch_catalog_map(db, [p for p, _ in results])
     return [
         ProductSearchResult(
             id=p.id,
             sku=p.sku,
             barcode=p.barcode,
             name=p.name,
-            base_unit=p.base_unit,
+            base_unit_id=p.base_unit_id,
+            base_unit_catalog=UnitCatalogOut.model_validate(catalog_map[p.base_unit_id])
+            if p.base_unit_id in catalog_map else None,
             tax_rate=p.tax_rate,
             tax_included_in_price=p.tax_included_in_price,
-            is_active=p.is_active,
             category_id=p.category_id,
             similarity=sim,
         )
@@ -80,7 +101,7 @@ async def search_products(
 async def list_products(
     search: str | None = Query(None),
     category_id: UUID | None = Query(None),
-    is_active: bool | None = Query(None),
+    include_deleted: bool = Query(False),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -90,12 +111,13 @@ async def list_products(
         db,
         search=search,
         category_id=category_id,
-        is_active=is_active,
+        include_deleted=include_deleted,
         page=page,
         page_size=page_size,
     )
+    catalog_map = await _fetch_catalog_map(db, items)
     return ProductListOut(
-        items=[_to_out(p) for p in items],
+        items=[_to_out(p, catalog_map.get(p.base_unit_id)) for p in items],
         total=total,
         page=page,
         page_size=page_size,
@@ -112,7 +134,8 @@ async def get_product(
     product = await product_service.get_product(db, product_id)
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
-    return _to_out(product)
+    catalog = await db.get(UnitCatalog, product.base_unit_id)
+    return _to_out(product, catalog)
 
 
 @router.post("", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
@@ -150,7 +173,8 @@ async def create_product(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al crear producto",
         )
-    return _to_out(product)
+    catalog = await db.get(UnitCatalog, product.base_unit_id)
+    return _to_out(product, catalog)
 
 
 @router.patch("/{product_id}", response_model=ProductOut)
@@ -193,7 +217,8 @@ async def update_product(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al actualizar producto",
         )
-    return _to_out(product)
+    catalog = await db.get(UnitCatalog, product.base_unit_id)
+    return _to_out(product, catalog)
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -216,3 +241,48 @@ async def delete_product(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al eliminar producto",
         )
+
+
+@router.post("/{product_id}/restore", response_model=ProductOut)
+async def restore_product_endpoint(
+    product_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        product = await restore_product(db, product_id, user_id=current_user.id)
+    except ProductNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado o no está eliminado")
+    except SKUConflictOnRestoreError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "sku_conflict_on_restore",
+                "message": f"El SKU '{e.sku}' ya está en uso por otro producto activo",
+                "conflicting_value": e.sku,
+                "conflicting_product_id": str(e.conflicting_product_id),
+            },
+        )
+    except BarcodeConflictOnRestoreError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "barcode_conflict_on_restore",
+                "message": f"El código de barras '{e.barcode}' ya está en uso por otro producto activo",
+                "conflicting_value": e.barcode,
+                "conflicting_product_id": str(e.conflicting_product_id),
+            },
+        )
+
+    try:
+        await db.commit()
+        await db.refresh(product)
+    except Exception:
+        logger.exception("Error al restaurar producto %s", product_id)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al restaurar producto",
+        )
+    catalog = await db.get(UnitCatalog, product.base_unit_id)
+    return _to_out(product, catalog)

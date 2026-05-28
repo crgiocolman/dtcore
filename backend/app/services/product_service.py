@@ -30,6 +30,20 @@ class ProductBarcodeConflictError(Exception):
         super().__init__(f"Ya existe un producto con barcode {barcode}")
 
 
+class SKUConflictOnRestoreError(Exception):
+    def __init__(self, sku: str, conflicting_product_id: UUID) -> None:
+        self.sku = sku
+        self.conflicting_product_id = conflicting_product_id
+        super().__init__(f"El SKU {sku} ya está en uso por otro producto activo")
+
+
+class BarcodeConflictOnRestoreError(Exception):
+    def __init__(self, barcode: str, conflicting_product_id: UUID) -> None:
+        self.barcode = barcode
+        self.conflicting_product_id = conflicting_product_id
+        super().__init__(f"El barcode {barcode} ya está en uso por otro producto activo")
+
+
 async def get_product(db: AsyncSession, product_id: UUID) -> Product | None:
     result = await db.execute(
         select(Product).where(
@@ -73,11 +87,13 @@ async def list_products(
     *,
     search: str | None = None,
     category_id: UUID | None = None,
-    is_active: bool | None = None,
+    include_deleted: bool = False,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Product], int]:
-    base = select(Product).where(Product.deleted_at.is_(None))
+    base = select(Product)
+    if not include_deleted:
+        base = base.where(Product.deleted_at.is_(None))
 
     if search:
         pattern = f"%{search}%"
@@ -89,8 +105,6 @@ async def list_products(
         )
     if category_id is not None:
         base = base.where(Product.category_id == category_id)
-    if is_active is not None:
-        base = base.where(Product.is_active == is_active)
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
@@ -135,7 +149,6 @@ async def search_products(
         select(Product, sim_score)
         .where(
             Product.deleted_at.is_(None),
-            Product.is_active == True,  # noqa: E712
             or_(sku_match, barcode_match, name_match),
         )
         .order_by(priority.desc(), name_sim.desc())
@@ -163,12 +176,11 @@ async def create_product(
         name=data.name,
         description=data.description,
         category_id=data.category_id,
-        base_unit=data.base_unit,
+        base_unit_id=data.base_unit_id,
         track_stock=data.track_stock,
         tax_rate=data.tax_rate,
         tax_included_in_price=data.tax_included_in_price,
         low_stock_threshold=data.low_stock_threshold,
-        is_active=data.is_active,
         created_by_user_id=user_id,
         updated_by_user_id=user_id,
     )
@@ -179,7 +191,7 @@ async def create_product(
         db.add(ProductUnit(
             id=uuid4(),
             product_id=data.id,
-            unit_name=data.base_unit,
+            unit_catalog_id=data.base_unit_id,
             factor_to_base=Decimal("1"),
             is_default_sale_unit=True,
             is_default_purchase_unit=True,
@@ -256,6 +268,58 @@ async def delete_product(
         entity_id=product_id,
         action=AuditAction.DELETE,
         changes=None,
+    ))
+
+    return product
+
+
+async def restore_product(
+    db: AsyncSession,
+    product_id: UUID,
+    *,
+    user_id: UUID,
+) -> Product:
+    result = await db.execute(
+        select(Product).where(Product.id == product_id)
+    )
+    product = result.scalar_one_or_none()
+    if product is None or product.deleted_at is None:
+        raise ProductNotFoundError()
+
+    # Validate SKU doesn't conflict with an active product
+    sku_conflict = (await db.execute(
+        select(Product.id).where(
+            Product.deleted_at.is_(None),
+            func.lower(Product.sku) == product.sku.lower(),
+            Product.id != product_id,
+        )
+    )).scalar_one_or_none()
+    if sku_conflict is not None:
+        raise SKUConflictOnRestoreError(product.sku, sku_conflict)
+
+    # Validate barcode doesn't conflict with an active product
+    if product.barcode is not None:
+        barcode_conflict = (await db.execute(
+            select(Product.id).where(
+                Product.deleted_at.is_(None),
+                Product.barcode == product.barcode,
+                Product.id != product_id,
+            )
+        )).scalar_one_or_none()
+        if barcode_conflict is not None:
+            raise BarcodeConflictOnRestoreError(product.barcode, barcode_conflict)
+
+    old_deleted_at = product.deleted_at
+    product.deleted_at = None
+    product.updated_by_user_id = user_id
+
+    db.add(AuditLog(
+        id=uuid4(),
+        user_id=user_id,
+        entity_type="product",
+        entity_id=product_id,
+        action=AuditAction.UPDATE,
+        changes={"deleted_at": {"old": old_deleted_at, "new": None}},
     ))
 
     return product

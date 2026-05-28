@@ -6,6 +6,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { Categories } from './features/admin/pages/Categories'
 import { Currencies } from './features/admin/pages/Currencies'
 import { Settings } from './features/admin/pages/Settings'
+import { UnitCatalog } from './features/admin/pages/UnitCatalog'
 import { Login } from './features/auth/pages/Login'
 import { useAuthStore } from './features/auth/store'
 import { ContactForm } from './features/contacts/pages/ContactForm'
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="admin/settings" element={<Settings />} />
           <Route path="admin/currencies" element={<Currencies />} />
           <Route path="admin/categorias" element={<Categories />} />
+          <Route path="admin/units" element={<UnitCatalog />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

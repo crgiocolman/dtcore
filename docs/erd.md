@@ -3,7 +3,7 @@
 Modelo de datos del sistema de compra/venta/inventario. Fuente de verdad para el schema de PostgreSQL.
 
 **Versión:** v1 (MVP)
-**Última actualización:** 2026-05-22
+**Última actualización:** 2026-05-28
 
 ---
 
@@ -204,6 +204,34 @@ Tabla única para clientes y proveedores. Un contacto puede ser ambos.
 
 ## Módulo 4 — Productos
 
+### 4.0 `units_catalog`
+
+Catálogo normalizado de unidades de medida. Data semi-maestra: los registros se crean desde seed o UI de admin; ciclo de vida largo. Reemplaza los strings libres `base_unit` y `unit_name` que existían en `products` y `product_units` antes del Bloque 3.8 (2026-05-28).
+
+| Columna | Tipo | Constraints | Notas |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `code` | VARCHAR(20) | NOT NULL | Clave natural: "kg", "unit", "box". Inmutable tras creación. |
+| `name` | VARCHAR(50) | NOT NULL | "Kilogramo", "Unidad", "Caja" |
+| `symbol` | VARCHAR(10) | NOT NULL | "kg", "u", "caja" |
+| `unit_type` | ENUM `unit_type` | NOT NULL | Categoría de medida |
+| `is_active` | BOOLEAN | NOT NULL, DEFAULT TRUE | |
+| `created_at`, `updated_at`, `deleted_at` | — | TimestampMixin + SoftDeleteMixin | |
+
+**Enum `unit_type`:** `weight`, `length`, `volume`, `count`, `package`
+
+**Constraints:**
+- Partial unique index: `uq_units_catalog_code_active` (`code` WHERE `deleted_at IS NULL`) — permite reutilizar code si se soft-deleted
+
+**Seeds iniciales (12 entradas, UUIDs fijos):**
+`kg`, `g`, `m`, `cm`, `l`, `ml`, `unit`, `box`, `roll`, `pack`, `doz`, `sheet`
+
+**Notas:**
+- Solo `name`, `symbol`, `unit_type`, `is_active` son editables. `code` es inmutable (natural key estable).
+- Sin hard delete en UI de admin (toggle activo/inactivo solamente). Endpoint DELETE existe en la API para uso técnico.
+
+---
+
 ### 4.1 `product_categories`
 
 Categorías jerárquicas de productos.
@@ -226,7 +254,7 @@ Categorías jerárquicas de productos.
 
 ### 4.2 `products`
 
-Productos del catálogo. El stock se trackea en `base_unit`.
+Productos del catálogo. El stock se trackea en `base_unit_id` (unidad base del catálogo).
 
 | Columna | Tipo | Constraints | Notas |
 |---|---|---|---|
@@ -236,14 +264,15 @@ Productos del catálogo. El stock se trackea en `base_unit`.
 | `name` | VARCHAR(200) | NOT NULL | |
 | `description` | TEXT | NULL | |
 | `category_id` | UUID | FK product_categories, NULL | |
-| `base_unit` | VARCHAR(20) | NOT NULL | "unidad", "kg", "metro", "litro" |
+| `base_unit_id` | UUID | FK units_catalog, NOT NULL, ON DELETE RESTRICT | Reemplaza `base_unit VARCHAR(20)` (Bloque 3.8) |
 | `track_stock` | BOOLEAN | NOT NULL, DEFAULT TRUE | False = servicio sin stock |
 | `tax_rate` | NUMERIC(5,2) | NOT NULL, DEFAULT 10.00 | Tasa IVA: 0, 5, 10 |
 | `tax_included_in_price` | BOOLEAN | NOT NULL, DEFAULT TRUE | Precio de góndola incluye IVA |
 | `low_stock_threshold` | NUMERIC(18,4) | NULL | Override del default de settings |
-| `is_active` | BOOLEAN | NOT NULL, DEFAULT TRUE | |
 | `created_at`, `updated_at`, `deleted_at` | — | mixins | |
 | `created_by_user_id`, `updated_by_user_id` | — | AuditUserMixin | |
+
+> `is_active` eliminado en Bloque 3.9 (2026-05-28). La distinción activo/eliminado en products es solo `deleted_at`. Ver `design-decisions.md`.
 
 **Constraints:**
 - UNIQUE(`sku`) → `uq_products_sku`
@@ -254,7 +283,7 @@ Productos del catálogo. El stock se trackea en `base_unit`.
 - `ix_products_barcode` (parcial: `WHERE barcode IS NOT NULL`)
 - `ix_products_name` (para búsqueda con LIKE/trigram)
 - `ix_products_category_id`
-- `ix_products_is_active`
+- `ix_products_base_unit_id`
 
 **Sugerencia:** habilitar extensión `pg_trgm` y crear índice GIN sobre `name` para búsqueda fuzzy en el POS.
 
@@ -262,13 +291,13 @@ Productos del catálogo. El stock se trackea en `base_unit`.
 
 ### 4.3 `product_units`
 
-Unidades de venta/compra del producto. Cada producto tiene N unidades, todas convertibles a `base_unit`.
+Unidades de venta/compra del producto. Cada producto tiene N unidades, todas convertibles a la unidad base.
 
 | Columna | Tipo | Constraints | Notas |
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `product_id` | UUID | FK products, NOT NULL, ON DELETE CASCADE | |
-| `unit_name` | VARCHAR(30) | NOT NULL | "unidad", "rollo", "caja", "docena" |
+| `unit_catalog_id` | UUID | FK units_catalog, NOT NULL, ON DELETE RESTRICT | Reemplaza `unit_name VARCHAR(30)` (Bloque 3.8) |
 | `factor_to_base` | NUMERIC(18,6) | NOT NULL | 1 rollo = 50 metros → factor 50 |
 | `is_default_sale_unit` | BOOLEAN | NOT NULL, DEFAULT FALSE | |
 | `is_default_purchase_unit` | BOOLEAN | NOT NULL, DEFAULT FALSE | |
@@ -277,7 +306,7 @@ Unidades de venta/compra del producto. Cada producto tiene N unidades, todas con
 | `created_at`, `updated_at` | — | TimestampMixin | |
 
 **Constraints:**
-- UNIQUE(`product_id`, `unit_name`) → `uq_product_units_product_unit_name`
+- UNIQUE(`product_id`, `unit_catalog_id`) → `uq_product_units_product_catalog_unit`
 - CHECK(`factor_to_base > 0`) → `ck_product_units_factor_positive`
 
 **Índices:**
@@ -646,6 +675,8 @@ currencies ←── product_prices, purchases, sales
 
 product_categories ──↑ (self)
 product_categories ←── products
+units_catalog ←── products (base_unit_id)
+units_catalog ←── product_units (unit_catalog_id)
 products ←── product_units
 product_units ←── product_prices
 products, product_units ←── purchase_items, sale_items, stock_movements, stock_adjustment_items
@@ -665,8 +696,8 @@ products + warehouses ←── stock_current (PK compuesta)
 
 ## Orden de creación en Alembic (migración inicial)
 
-1. Enums (`user_role`, `setting_value_type`, etc.)
-2. `users`, `settings`, `currencies`, `warehouses`, `product_categories`
+1. Enums (`user_role`, `setting_value_type`, `unit_type`, etc.)
+2. `users`, `settings`, `currencies`, `warehouses`, `product_categories`, `units_catalog`
 3. `exchange_rates`, `contacts`, `products`
 4. `product_units`, `product_prices`
 5. `stock_current`
