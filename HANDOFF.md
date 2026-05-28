@@ -2,7 +2,7 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-05-27 — Correcciones post-pruebas Fase 3 aplicadas. Próximo: Fase 4 — Compras + Inventario inicial.
+**Última actualización:** 2026-05-28 — Refactor de product_units: toggle activo/inactivo + hard delete condicional. Próximo: Fase 4 — Compras + Inventario inicial.
 
 ---
 
@@ -74,6 +74,24 @@ Iniciar **Fase 4, bloque 4.1 — Backend stock_movements + stock_current**.
 ---
 
 ## Historial de fases cerradas
+
+### Refactor product_units: toggle activo/inactivo (2026-05-28)
+
+Rediseño del manejo de unidades inactivas. Principio: "inactiva" es un estado visible y reversible, no un borrado oculto.
+
+**Backend:**
+
+- `services/product_unit_service.py`: nuevas excepciones `ProductUnitNameConflictError`, `ProductUnitBaseUnitToggleError`. `get_units` ahora devuelve TODAS las unidades por default (parámetro `only_active=False`). `get_unit` ya no filtra por `is_active`. `create_unit` pre-chequea nombre duplicado (activo o inactivo) antes del INSERT. `delete_unit` hace hard delete solo si no hay referencias. Nueva función `toggle_active` y helper `_get_base_unit`. Helper `units_with_references` para batch lookup de referencias en 4 queries.
+- `schemas/product_units.py`: `ProductUnitOut` agrega campo `can_hard_delete: bool`.
+- `api/product_units.py`: `GET /products/{id}/units` acepta `?only_active=true` y computa `can_hard_delete` en batch. `POST` devuelve 409 estructurado `{"code": "exists_inactive"|"exists_active", "unit_id": "..."}`. Nuevo endpoint `PATCH /{id}/units/{unit_id}/toggle-active`.
+
+**Frontend:**
+
+- `api/units.ts`: `ProductUnitOut` agrega `can_hard_delete`, `ProductUnitCreate` saca `is_active`, nueva función `toggleUnitActive`.
+- `ProductForm.tsx`: `UnitFormState` y `LocalUnit` sacan `is_active` (siempre `true` al crear). Tabla de unidades: unidades inactivas con `opacity-60` + badge "Inactiva". Toggle switch por fila para activar/desactivar (solo en modo edit, solo unidades no-base). Ícono Trash solo si `can_hard_delete`. Nuevos modales: `ConfirmToggleModal` (pide confirmación si la unidad es default), `ReactivateModal` (se muestra cuando el backend responde `exists_inactive` al crear).
+- Tabla de precios: filtra para mostrar solo unidades activas.
+
+**Docs:** `design-decisions.md` agrega sección "Unidades inactivas: estado visible, no soft delete oculto". `common-patterns.md` agrega patrón "Toggle activo/inactivo vs eliminar".
 
 ### Correcciones post-pruebas Fase 3 (2026-05-27)
 

@@ -13,6 +13,7 @@ import {
   createUnit,
   deleteUnit,
   fetchUnits,
+  toggleUnitActive,
   updateUnit,
   type ProductUnitOut,
 } from '../api/units'
@@ -25,9 +26,35 @@ function parseApiError(err: unknown): string {
   if (!(err instanceof Error)) return 'Error desconocido'
   try {
     const parsed = JSON.parse(err.message)
+    if (typeof parsed?.detail === 'object' && parsed.detail !== null) {
+      return parsed.detail.message ?? err.message
+    }
     return parsed?.detail ?? err.message
   } catch {
     return err.message
+  }
+}
+
+interface StructuredError {
+  code?: string
+  message: string
+  unit_id?: string
+}
+
+function parseApiErrorStructured(err: unknown): StructuredError {
+  if (!(err instanceof Error)) return { message: 'Error desconocido' }
+  try {
+    const parsed = JSON.parse(err.message)
+    if (typeof parsed?.detail === 'object' && parsed.detail !== null) {
+      return {
+        code: parsed.detail.code,
+        message: parsed.detail.message ?? err.message,
+        unit_id: parsed.detail.unit_id,
+      }
+    }
+    return { message: parsed?.detail ?? err.message }
+  } catch {
+    return { message: err.message }
   }
 }
 
@@ -120,6 +147,98 @@ function DeleteModal({
   )
 }
 
+// ---- Confirm toggle modal ----
+
+function ConfirmToggleModal({
+  message,
+  loading,
+  onConfirm,
+  onClose,
+}: {
+  message: string
+  loading: boolean
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+    >
+      <div className="card w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-text-primary">Inactivar unidad</h3>
+          <button type="button" onClick={onClose} className="btn-ghost p-1">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="text-sm text-text-secondary">{message}</p>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? 'Guardando…' : 'Continuar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---- Reactivate unit modal ----
+
+function ReactivateModal({
+  unitName,
+  reactivating,
+  onConfirm,
+  onClose,
+}: {
+  unitName: string
+  reactivating: boolean
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+    >
+      <div className="card w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-text-primary">Unidad existente</h3>
+          <button type="button" onClick={onClose} className="btn-ghost p-1">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="text-sm text-text-secondary">
+          Ya existe una unidad{' '}
+          <span className="font-medium text-text-primary">"{unitName}"</span> inactiva para este
+          producto. ¿Querés reactivarla?
+        </p>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={onConfirm}
+            disabled={reactivating}
+          >
+            {reactivating ? 'Reactivando…' : 'Reactivar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ---- Unit modal ----
 
 interface UnitFormState {
@@ -128,7 +247,6 @@ interface UnitFormState {
   is_default_sale_unit: boolean
   is_default_purchase_unit: boolean
   barcode: string
-  is_active: boolean
 }
 
 type UnitFormErrors = Partial<Record<keyof UnitFormState, string>>
@@ -139,7 +257,6 @@ const DEFAULT_UNIT_FORM: UnitFormState = {
   is_default_sale_unit: false,
   is_default_purchase_unit: false,
   barcode: '',
-  is_active: true,
 }
 
 function UnitModal({
@@ -253,13 +370,6 @@ function UnitModal({
             />
             <span className="text-sm text-text-secondary">Unidad de compra por defecto</span>
           </label>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Toggle checked={form.is_active} onChange={(v) => set('is_active', v)} />
-          <span className="text-sm text-text-secondary">
-            {form.is_active ? 'Unidad activa' : 'Unidad inactiva'}
-          </span>
         </div>
 
         <div className="flex justify-end gap-2">
@@ -465,11 +575,11 @@ interface LocalUnit {
   is_default_sale_unit: boolean
   is_default_purchase_unit: boolean
   barcode: string
-  is_active: boolean
+  is_active: true
 }
 
 function localUnitFromForm(id: string, f: UnitFormState): LocalUnit {
-  return { id, ...f }
+  return { id, ...f, is_active: true }
 }
 
 function unitFormFromLocal(u: LocalUnit): UnitFormState {
@@ -479,7 +589,6 @@ function unitFormFromLocal(u: LocalUnit): UnitFormState {
     is_default_sale_unit: u.is_default_sale_unit,
     is_default_purchase_unit: u.is_default_purchase_unit,
     barcode: u.barcode,
-    is_active: u.is_active,
   }
 }
 
@@ -490,7 +599,6 @@ function unitFormFromSaved(u: ProductUnitOut): UnitFormState {
     is_default_sale_unit: u.is_default_sale_unit,
     is_default_purchase_unit: u.is_default_purchase_unit,
     barcode: u.barcode ?? '',
-    is_active: u.is_active,
   }
 }
 
@@ -531,6 +639,16 @@ export function ProductForm() {
   const [unitError, setUnitError] = useState<string | null>(null)
   const [deleteUnitId, setDeleteUnitId] = useState<string | null>(null)
   const [deletingUnit, setDeletingUnit] = useState(false)
+  const [togglingUnitId, setTogglingUnitId] = useState<string | null>(null)
+  const [confirmToggle, setConfirmToggle] = useState<{
+    unit: ProductUnitOut
+    message: string
+  } | null>(null)
+  const [reactivateModal, setReactivateModal] = useState<{
+    unitName: string
+    conflictingUnitId: string
+  } | null>(null)
+  const [reactivating, setReactivating] = useState(false)
 
   // Currencies + prices (edit mode only)
   const [currencies, setCurrencies] = useState<CurrencyOut[]>([])
@@ -652,7 +770,6 @@ export function ProductForm() {
             is_default_sale_unit: u.is_default_sale_unit,
             is_default_purchase_unit: u.is_default_purchase_unit,
             barcode: u.barcode || null,
-            is_active: u.is_active,
           })
         }
         navigate('/productos')
@@ -711,13 +828,13 @@ export function ProductForm() {
           is_default_sale_unit: data.is_default_sale_unit,
           is_default_purchase_unit: data.is_default_purchase_unit,
           barcode: data.barcode || null,
-          is_active: data.is_active,
         })
         setSavedUnits((prev) => [...prev, created])
         // Load prices for new unit
         for (const c of currencies) {
           setPrices((p) => ({ ...p, [`${created.id}:${c.code}`]: null }))
         }
+        setUnitModal(null)
       } else {
         const updated = await updateUnit(id!, unitModal.editId!, {
           unit_name: data.unit_name,
@@ -725,15 +842,72 @@ export function ProductForm() {
           is_default_sale_unit: data.is_default_sale_unit,
           is_default_purchase_unit: data.is_default_purchase_unit,
           barcode: data.barcode || null,
-          is_active: data.is_active,
         })
         setSavedUnits((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
+        setUnitModal(null)
       }
-      setUnitModal(null)
+    } catch (err) {
+      const structured = parseApiErrorStructured(err)
+      if (structured.code === 'exists_inactive' && structured.unit_id) {
+        setReactivateModal({ unitName: data.unit_name, conflictingUnitId: structured.unit_id })
+        setUnitModal(null)
+      } else {
+        setUnitError(structured.message)
+      }
+    } finally {
+      setSavingUnit(false)
+    }
+  }
+
+  const handleUnitToggle = async (unit: ProductUnitOut) => {
+    if (togglingUnitId) return
+    // Confirm before deactivating a default unit
+    if (unit.is_active && (unit.is_default_sale_unit || unit.is_default_purchase_unit)) {
+      const defaults = [
+        unit.is_default_sale_unit ? 'venta' : null,
+        unit.is_default_purchase_unit ? 'compra' : null,
+      ]
+        .filter(Boolean)
+        .join(' y ')
+      setConfirmToggle({
+        unit,
+        message: `Esta unidad es el default de ${defaults}. Si la inactivás, el default pasa a la unidad base. ¿Continuar?`,
+      })
+      return
+    }
+    await doToggleUnit(unit)
+  }
+
+  const doToggleUnit = async (unit: ProductUnitOut) => {
+    if (!id) return
+    setTogglingUnitId(unit.id)
+    setUnitError(null)
+    try {
+      const updated = await toggleUnitActive(id, unit.id)
+      setSavedUnits((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
     } catch (err) {
       setUnitError(parseApiError(err))
     } finally {
-      setSavingUnit(false)
+      setTogglingUnitId(null)
+      setConfirmToggle(null)
+    }
+  }
+
+  const handleReactivate = async () => {
+    if (!reactivateModal || !id) return
+    setReactivating(true)
+    setUnitError(null)
+    try {
+      const updated = await toggleUnitActive(id, reactivateModal.conflictingUnitId)
+      setSavedUnits((prev) => {
+        const exists = prev.find((u) => u.id === updated.id)
+        return exists ? prev.map((u) => (u.id === updated.id ? updated : u)) : [...prev, updated]
+      })
+      setReactivateModal(null)
+    } catch (err) {
+      setUnitError(parseApiError(err))
+    } finally {
+      setReactivating(false)
     }
   }
 
@@ -759,6 +933,7 @@ export function ProductForm() {
       setDeleteUnitId(null)
     } catch (err) {
       setUnitError(parseApiError(err))
+      setDeleteUnitId(null)
     } finally {
       setDeletingUnit(false)
     }
@@ -790,19 +965,21 @@ export function ProductForm() {
 
   const displayUnits = isEdit ? savedUnits : localUnits
 
-  // Units with factor=1 can be identified for label display
+  // Only show prices for active units
   const priceRows = useMemo(
     () =>
-      savedUnits.flatMap((u) =>
-        currencies.map((c) => ({
-          unitId: u.id,
-          unitName: u.unit_name,
-          currencyCode: c.code,
-          currencySymbol: c.symbol,
-          decimals: c.decimal_places,
-          priceEntry: prices[`${u.id}:${c.code}`],
-        })),
-      ),
+      savedUnits
+        .filter((u) => u.is_active)
+        .flatMap((u) =>
+          currencies.map((c) => ({
+            unitId: u.id,
+            unitName: u.unit_name,
+            currencyCode: c.code,
+            currencySymbol: c.symbol,
+            decimals: c.decimal_places,
+            priceEntry: prices[`${u.id}:${c.code}`],
+          })),
+        ),
     [savedUnits, currencies, prices],
   )
 
@@ -1088,8 +1265,15 @@ export function ProductForm() {
                   <tbody className="divide-y divide-border-subtle">
                     {displayUnits.map((u) => {
                       const isDeleting = deleteUnitId === u.id
+                      const isBase = parseFloat(u.factor_to_base) === 1
+                      const canHardDelete = isEdit
+                        ? (u as ProductUnitOut).can_hard_delete
+                        : true
                       return (
-                        <tr key={u.id}>
+                        <tr
+                          key={u.id}
+                          className={!u.is_active ? 'opacity-60' : undefined}
+                        >
                           <td className="py-2 pr-4 text-text-primary">{u.unit_name}</td>
                           <td className="py-2 pr-4 text-right tabular-nums text-text-secondary">
                             {u.factor_to_base}
@@ -1109,11 +1293,13 @@ export function ProductForm() {
                             )}
                           </td>
                           <td className="py-2 pr-4">
-                            <span
-                              className={`text-xs font-medium ${u.is_active ? 'text-success-500' : 'text-text-muted'}`}
-                            >
-                              {u.is_active ? 'Activa' : 'Inactiva'}
-                            </span>
+                            {u.is_active ? (
+                              <span className="text-xs font-medium text-success-500">Activa</span>
+                            ) : (
+                              <span className="rounded-full bg-bg-elevated px-2 py-0.5 text-xs font-medium text-text-muted">
+                                Inactiva
+                              </span>
+                            )}
                           </td>
                           <td className="py-2">
                             {isDeleting ? (
@@ -1154,17 +1340,26 @@ export function ProductForm() {
                                 >
                                   <Pencil className="h-4 w-4" />
                                 </button>
-                                <button
-                                  type="button"
-                                  className="btn-ghost px-2 py-1 text-danger-500 hover:text-danger-500"
-                                  aria-label={`Eliminar ${u.unit_name}`}
-                                  onClick={() => {
-                                    setUnitError(null)
-                                    setDeleteUnitId(u.id)
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
+                                {isEdit && !isBase && (
+                                  <Toggle
+                                    checked={u.is_active}
+                                    onChange={() => handleUnitToggle(u as ProductUnitOut)}
+                                    disabled={togglingUnitId === u.id}
+                                  />
+                                )}
+                                {canHardDelete && (
+                                  <button
+                                    type="button"
+                                    className="btn-ghost px-2 py-1 text-danger-500 hover:text-danger-500"
+                                    aria-label={`Eliminar ${u.unit_name}`}
+                                    onClick={() => {
+                                      setUnitError(null)
+                                      setDeleteUnitId(u.id)
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
                               </div>
                             )}
                           </td>
@@ -1298,6 +1493,24 @@ export function ProductForm() {
             setPriceModal(null)
             setPriceError(null)
           }}
+        />
+      )}
+
+      {confirmToggle && (
+        <ConfirmToggleModal
+          message={confirmToggle.message}
+          loading={togglingUnitId !== null}
+          onConfirm={() => doToggleUnit(confirmToggle.unit)}
+          onClose={() => setConfirmToggle(null)}
+        />
+      )}
+
+      {reactivateModal && (
+        <ReactivateModal
+          unitName={reactivateModal.unitName}
+          reactivating={reactivating}
+          onConfirm={handleReactivate}
+          onClose={() => setReactivateModal(null)}
         />
       )}
     </div>

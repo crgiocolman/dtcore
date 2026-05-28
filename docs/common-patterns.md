@@ -364,6 +364,34 @@ En tablas de montos, precios o cantidades: clase `tabular-nums` en el contenedor
 
 ---
 
+## Toggle activo/inactivo vs eliminar (product_units)
+
+Cuándo aplicar cada acción en la UI de unidades:
+
+| Situación | Acción disponible |
+|---|---|
+| Unidad sin referencias (nunca usada) | Toggle activo/inactivo + Trash (hard delete) |
+| Unidad con referencias (compras, ventas, precios) | Solo toggle activo/inactivo |
+| Unidad base (factor_to_base = 1) | Solo editar (no toggle, no eliminar) |
+
+**Backend:** `can_hard_delete: bool` se devuelve por unidad en `GET /products/{id}/units`. El frontend muestra el ícono Trash solo cuando es `true`.
+
+**Toggle activo:** endpoint `PATCH /products/{id}/units/{unit_id}/toggle-active`. Si la unidad desactivada era default de venta/compra, el backend reasigna esos flags a la unidad base automáticamente.
+
+**Conflicto al crear unidad con nombre existente inactiva:** el backend devuelve 409 con `{"code": "exists_inactive", "unit_id": "..."}`. El frontend detecta ese `code` y muestra el modal "¿Querés reactivarla?" en lugar del error genérico.
+
+```typescript
+// Detectar error estructurado en el frontend
+const structured = parseApiErrorStructured(err)
+if (structured.code === 'exists_inactive' && structured.unit_id) {
+  setReactivateModal({ unitName: data.unit_name, conflictingUnitId: structured.unit_id })
+} else {
+  setUnitError(structured.message)
+}
+```
+
+---
+
 ## Cómo agregar nuevos patrones
 
 Cuando un patrón aparece 2+ veces en código, documentarlo acá. Formato:

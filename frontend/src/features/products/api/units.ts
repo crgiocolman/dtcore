@@ -9,6 +9,7 @@ export interface ProductUnitOut {
   is_default_purchase_unit: boolean
   barcode: string | null
   is_active: boolean
+  can_hard_delete: boolean
   created_at: string
   updated_at: string
 }
@@ -20,7 +21,6 @@ export interface ProductUnitCreate {
   is_default_sale_unit: boolean
   is_default_purchase_unit: boolean
   barcode: string | null
-  is_active: boolean
 }
 
 export interface ProductUnitUpdate {
@@ -29,11 +29,11 @@ export interface ProductUnitUpdate {
   is_default_sale_unit?: boolean
   is_default_purchase_unit?: boolean
   barcode?: string | null
-  is_active?: boolean
 }
 
-export function fetchUnits(productId: string): Promise<ProductUnitOut[]> {
-  return apiFetch<ProductUnitOut[]>(`/products/${productId}/units`)
+export function fetchUnits(productId: string, onlyActive?: boolean): Promise<ProductUnitOut[]> {
+  const qs = onlyActive ? '?only_active=true' : ''
+  return apiFetch<ProductUnitOut[]>(`/products/${productId}/units${qs}`)
 }
 
 export function createUnit(productId: string, data: ProductUnitCreate): Promise<ProductUnitOut> {
@@ -51,6 +51,12 @@ export function updateUnit(
   return apiFetch<ProductUnitOut>(`/products/${productId}/units/${unitId}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
+  })
+}
+
+export function toggleUnitActive(productId: string, unitId: string): Promise<ProductUnitOut> {
+  return apiFetch<ProductUnitOut>(`/products/${productId}/units/${unitId}/toggle-active`, {
+    method: 'PATCH',
   })
 }
 

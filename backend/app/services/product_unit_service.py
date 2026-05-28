@@ -20,23 +20,36 @@ class ProductUnitNotFoundError(Exception):
 
 
 class ProductUnitBaseUnitDeleteError(Exception):
-    """Rule 2: unit with factor_to_base == 1 cannot be deleted."""
+    """Base unit (factor_to_base == 1) cannot be deleted."""
+    pass
+
+
+class ProductUnitBaseUnitToggleError(Exception):
+    """Base unit (factor_to_base == 1) cannot be deactivated."""
     pass
 
 
 class ProductUnitHasReferencesError(Exception):
-    """Rule 3: unit referenced in transactions cannot be deleted."""
+    """Unit referenced in transactions cannot be hard-deleted."""
     pass
 
 
 class ProductUnitFactorImmutableError(Exception):
-    """Rule 4: factor_to_base cannot change once the unit has any reference."""
+    """factor_to_base cannot change once the unit has any reference."""
     pass
 
 
 class ProductUnitNoDefaultError(Exception):
-    """Rule 6: base unit must always hold at least one default flag."""
+    """Base unit must always hold at least one default flag."""
     pass
+
+
+class ProductUnitNameConflictError(Exception):
+    """A unit with the same name already exists (active or inactive)."""
+    def __init__(self, unit_name: str, existing_is_active: bool, existing_id: UUID):
+        self.unit_name = unit_name
+        self.existing_is_active = existing_is_active
+        self.existing_id = existing_id
 
 
 # ---------------------------------------------------------------------------
@@ -44,17 +57,21 @@ class ProductUnitNoDefaultError(Exception):
 # ---------------------------------------------------------------------------
 
 
-async def get_units(db: AsyncSession, product_id: UUID) -> list[ProductUnit]:
-    result = await db.execute(
+async def get_units(
+    db: AsyncSession, product_id: UUID, *, only_active: bool = False
+) -> list[ProductUnit]:
+    stmt = (
         select(ProductUnit)
         .join(Product, ProductUnit.product_id == Product.id)
         .where(
             ProductUnit.product_id == product_id,
-            ProductUnit.is_active == True,  # noqa: E712
             Product.deleted_at.is_(None),
         )
         .order_by(ProductUnit.unit_name)
     )
+    if only_active:
+        stmt = stmt.where(ProductUnit.is_active == True)  # noqa: E712
+    result = await db.execute(stmt)
     return list(result.scalars().all())
 
 
@@ -65,7 +82,6 @@ async def get_unit(
         select(ProductUnit).where(
             ProductUnit.id == unit_id,
             ProductUnit.product_id == product_id,
-            ProductUnit.is_active == True,  # noqa: E712
         )
     )
     return result.scalar_one_or_none()
@@ -92,13 +108,31 @@ async def _has_references(db: AsyncSession, unit_id: UUID) -> bool:
     return False
 
 
+async def units_with_references(db: AsyncSession, unit_ids: list[UUID]) -> set[UUID]:
+    """Return set of unit_ids that have at least one reference. Uses 4 queries total."""
+    if not unit_ids:
+        return set()
+    referenced: set[UUID] = set()
+    for model, col in (
+        (PurchaseItem, PurchaseItem.product_unit_id),
+        (SaleItem, SaleItem.product_unit_id),
+        (StockAdjustmentItem, StockAdjustmentItem.product_unit_id),
+        (ProductPrice, ProductPrice.product_unit_id),
+    ):
+        rows = (
+            await db.execute(select(col).where(col.in_(unit_ids)).distinct())
+        ).scalars().all()
+        referenced.update(rows)
+    return referenced
+
+
 async def _clear_default_flag(
     db: AsyncSession,
     product_id: UUID,
     flag_name: str,
     exclude_id: UUID | None = None,
 ) -> None:
-    """Find and clear a default flag from its current holder (excluding exclude_id)."""
+    """Clear a default flag from its current active holder (excluding exclude_id)."""
     stmt = select(ProductUnit).where(
         ProductUnit.product_id == product_id,
         ProductUnit.is_active == True,  # noqa: E712
@@ -109,6 +143,21 @@ async def _clear_default_flag(
     current = (await db.execute(stmt)).scalar_one_or_none()
     if current is not None:
         setattr(current, flag_name, False)
+
+
+async def _get_base_unit(
+    db: AsyncSession, product_id: UUID
+) -> ProductUnit | None:
+    """Return the active base unit (factor_to_base == 1) for a product."""
+    return (
+        await db.execute(
+            select(ProductUnit).where(
+                ProductUnit.product_id == product_id,
+                ProductUnit.is_active == True,  # noqa: E712
+                ProductUnit.factor_to_base == Decimal("1"),
+            )
+        )
+    ).scalar_one_or_none()
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +171,22 @@ async def create_unit(
     *,
     data: ProductUnitCreate,
 ) -> ProductUnit:
+    # Check for name conflict (active or inactive)
+    existing = (
+        await db.execute(
+            select(ProductUnit).where(
+                ProductUnit.product_id == product_id,
+                ProductUnit.unit_name == data.unit_name,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise ProductUnitNameConflictError(
+            unit_name=data.unit_name,
+            existing_is_active=existing.is_active,
+            existing_id=existing.id,
+        )
+
     # Rule 5: unset previous holders before assigning new defaults
     if data.is_default_sale_unit:
         await _clear_default_flag(db, product_id, "is_default_sale_unit")
@@ -136,7 +201,7 @@ async def create_unit(
         is_default_sale_unit=data.is_default_sale_unit,
         is_default_purchase_unit=data.is_default_purchase_unit,
         barcode=data.barcode,
-        is_active=data.is_active,
+        is_active=True,
     )
     db.add(unit)
     return unit
@@ -189,12 +254,41 @@ async def delete_unit(
     if unit is None:
         raise ProductUnitNotFoundError()
 
-    # Rule 2: base unit (factor_to_base == 1) is permanent
+    # Base unit is permanent
     if unit.factor_to_base == Decimal("1"):
         raise ProductUnitBaseUnitDeleteError()
 
-    # Rule 3: unit referenced in transactions cannot be deactivated
+    # Hard delete only if no references exist
     if await _has_references(db, unit_id):
         raise ProductUnitHasReferencesError()
 
-    unit.is_active = False
+    await db.delete(unit)
+
+
+async def toggle_active(
+    db: AsyncSession,
+    product_id: UUID,
+    unit_id: UUID,
+) -> ProductUnit:
+    unit = await get_unit(db, product_id, unit_id)
+    if unit is None:
+        raise ProductUnitNotFoundError()
+
+    if unit.factor_to_base == Decimal("1"):
+        raise ProductUnitBaseUnitToggleError()
+
+    new_active = not unit.is_active
+    unit.is_active = new_active
+
+    # Reassign default flags to the base unit when deactivating a default holder
+    if not new_active and (unit.is_default_sale_unit or unit.is_default_purchase_unit):
+        base = await _get_base_unit(db, product_id)
+        if base is not None:
+            if unit.is_default_sale_unit:
+                base.is_default_sale_unit = True
+            if unit.is_default_purchase_unit:
+                base.is_default_purchase_unit = True
+        unit.is_default_sale_unit = False
+        unit.is_default_purchase_unit = False
+
+    return unit

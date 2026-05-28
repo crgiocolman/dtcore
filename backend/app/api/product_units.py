@@ -1,7 +1,8 @@
 import logging
+from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,8 +13,10 @@ from app.schemas.product_units import ProductUnitCreate, ProductUnitOut, Product
 from app.services import product_service, product_unit_service
 from app.services.product_unit_service import (
     ProductUnitBaseUnitDeleteError,
+    ProductUnitBaseUnitToggleError,
     ProductUnitFactorImmutableError,
     ProductUnitHasReferencesError,
+    ProductUnitNameConflictError,
     ProductUnitNoDefaultError,
     ProductUnitNotFoundError,
 )
@@ -30,7 +33,7 @@ async def _get_product_or_404(product_id: UUID, db: AsyncSession):
     return product
 
 
-def _to_out(u) -> ProductUnitOut:
+def _to_out(u, can_hard_delete: bool) -> ProductUnitOut:
     return ProductUnitOut(
         id=u.id,
         product_id=u.product_id,
@@ -40,6 +43,7 @@ def _to_out(u) -> ProductUnitOut:
         is_default_purchase_unit=u.is_default_purchase_unit,
         barcode=u.barcode,
         is_active=u.is_active,
+        can_hard_delete=can_hard_delete,
         created_at=u.created_at,
         updated_at=u.updated_at,
     )
@@ -48,12 +52,18 @@ def _to_out(u) -> ProductUnitOut:
 @router.get("/{product_id}/units", response_model=list[ProductUnitOut])
 async def list_units(
     product_id: UUID,
+    only_active: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
     await _get_product_or_404(product_id, db)
-    units = await product_unit_service.get_units(db, product_id)
-    return [_to_out(u) for u in units]
+    units = await product_unit_service.get_units(db, product_id, only_active=only_active)
+    unit_ids = [u.id for u in units]
+    referenced = await product_unit_service.units_with_references(db, unit_ids)
+    return [
+        _to_out(u, can_hard_delete=u.id not in referenced and u.factor_to_base != Decimal("1"))
+        for u in units
+    ]
 
 
 @router.post(
@@ -69,7 +79,18 @@ async def create_unit(
 ):
     await _get_product_or_404(product_id, db)
 
-    unit = await product_unit_service.create_unit(db, product_id, data=body)
+    try:
+        unit = await product_unit_service.create_unit(db, product_id, data=body)
+    except ProductUnitNameConflictError as e:
+        state = "inactiva" if not e.existing_is_active else "activa"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "exists_inactive" if not e.existing_is_active else "exists_active",
+                "message": f"Ya existe una unidad '{e.unit_name}' {state} para este producto",
+                "unit_id": str(e.existing_id),
+            },
+        )
 
     try:
         await db.commit()
@@ -87,7 +108,7 @@ async def create_unit(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al crear unidad",
         )
-    return _to_out(unit)
+    return _to_out(unit, can_hard_delete=True)
 
 
 @router.patch("/{product_id}/units/{unit_id}", response_model=ProductUnitOut)
@@ -131,7 +152,41 @@ async def update_unit(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al actualizar unidad",
         )
-    return _to_out(unit)
+    has_refs = await product_unit_service._has_references(db, unit.id)
+    return _to_out(unit, can_hard_delete=not has_refs and unit.factor_to_base != Decimal("1"))
+
+
+@router.patch("/{product_id}/units/{unit_id}/toggle-active", response_model=ProductUnitOut)
+async def toggle_unit_active(
+    product_id: UUID,
+    unit_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    await _get_product_or_404(product_id, db)
+
+    try:
+        unit = await product_unit_service.toggle_active(db, product_id, unit_id)
+    except ProductUnitNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unidad no encontrada")
+    except ProductUnitBaseUnitToggleError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede inactivar la unidad base (factor_to_base = 1)",
+        )
+
+    try:
+        await db.commit()
+        await db.refresh(unit)
+    except Exception:
+        logger.exception("Error al cambiar estado de unidad %s", unit_id)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al cambiar estado de unidad",
+        )
+    has_refs = await product_unit_service._has_references(db, unit.id)
+    return _to_out(unit, can_hard_delete=not has_refs and unit.factor_to_base != Decimal("1"))
 
 
 @router.delete("/{product_id}/units/{unit_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -155,7 +210,7 @@ async def delete_unit(
     except ProductUnitHasReferencesError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="No se puede eliminar: la unidad tiene movimientos, precios o items asociados",
+            detail="No se puede eliminar: la unidad tiene movimientos o precios asociados. Inactivala en su lugar.",
         )
 
     try:

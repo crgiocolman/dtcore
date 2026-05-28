@@ -35,5 +35,6 @@ class ProductUnitOut(BaseModel):
     is_default_purchase_unit: bool
     barcode: str | None
     is_active: bool
+    can_hard_delete: bool
     created_at: datetime
     updated_at: datetime

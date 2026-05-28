@@ -334,3 +334,24 @@ Cuando se tome una decisión que merezca ir a `CLAUDE.md` como regla, agregarla 
 `contacts.document_number` no tiene UNIQUE constraint (es nullable y de múltiples formatos) → no aplica.
 
 **Trade-off aceptado:** Dos registros borrados con el mismo valor conviven sin conflicto. Es el comportamiento correcto: el historial no se destruye.
+
+---
+
+## Unidades inactivas: estado visible, no soft delete oculto
+
+**Decisión:** `product_units` no usa `deleted_at` para "borrar" unidades. En su lugar, `is_active` es un estado visible y reversible:
+
+- Desactivar una unidad (`is_active = false`) la muestra en la UI con badge "Inactiva" y `opacity-60`. No desaparece.
+- Eliminar una unidad (hard delete) solo es posible si nunca tuvo referencias en `purchase_items`, `sale_items`, `stock_adjustment_items` ni `product_prices`.
+- Si ya tiene referencias, se inactiva en lugar de eliminar — el historial se mantiene íntegro.
+
+**Por qué visible y no oculto:**
+
+Si se ocultaran las inactivas, la UI daría la sensación de que la unidad "no existe" pero el nombre seguiría ocupado en el UNIQUE constraint. Intentar crear una unidad con el mismo nombre daría 409 confuso. Con el modelo visible, el usuario ve que existe inactiva y puede reactivarla directamente.
+
+**Reglas de negocio asociadas:**
+
+- La unidad base (`factor_to_base = 1`) no puede inactivarse ni eliminarse.
+- Si se inactiva una unidad que era default de venta o compra, esos flags pasan automáticamente a la unidad base.
+- El UNIQUE constraint `uq_product_units_product_unit_name` es total (sin cláusula `WHERE`) — activas e inactivas compiten por el nombre dentro del mismo producto.
+- `can_hard_delete` se expone en el API por unidad: `True` solo si no tiene referencias Y `factor_to_base != 1`. El frontend muestra el ícono de trash solo para esas unidades.
