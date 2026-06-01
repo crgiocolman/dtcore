@@ -1,5 +1,6 @@
-import { BarChart3, Boxes, Coins, FolderTree, Home, Package, Receipt, Ruler, Settings, ShoppingCart, Truck, Users } from 'lucide-react'
+import { BarChart3, Boxes, Coins, FolderTree, Home, Package, PackagePlus, Receipt, Ruler, Settings, ShoppingCart, Truck, Users } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
+import { useAuthStore } from '../features/auth/store'
 
 const NAV_ITEMS = [
   { label: 'Inicio', to: '/', end: true, Icon: Home },
@@ -14,13 +15,21 @@ const NAV_ITEMS = [
   { label: 'Monedas', to: '/admin/currencies', end: false, Icon: Coins },
   { label: 'Categorías', to: '/admin/categorias', end: false, Icon: FolderTree },
   { label: 'Unidades', to: '/admin/units', end: false, Icon: Ruler },
+  { label: 'Inventario inicial', to: '/admin/inventario-inicial', end: false, Icon: PackagePlus, adminOnly: true },
 ]
 
 export function Sidebar() {
+  const user = useAuthStore((s) => s.user)
+
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    if ('adminOnly' in item && item.adminOnly && user?.role !== 'admin') return false
+    return true
+  })
+
   return (
     <nav className="flex w-52 flex-shrink-0 flex-col border-r border-border-subtle bg-bg-surface">
       <ul className="flex-1 space-y-0.5 p-2 pt-3">
-        {NAV_ITEMS.map(({ label, to, end, Icon }) => (
+        {visibleItems.map(({ label, to, end, Icon }) => (
           <li key={to}>
             <NavLink
               to={to}

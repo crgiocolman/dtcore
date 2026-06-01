@@ -6,6 +6,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { Categories } from './features/admin/pages/Categories'
 import { Currencies } from './features/admin/pages/Currencies'
 import { Settings } from './features/admin/pages/Settings'
+import { InitialInventory } from './features/admin/pages/InitialInventory'
 import { UnitCatalog } from './features/admin/pages/UnitCatalog'
 import { Login } from './features/auth/pages/Login'
 import { useAuthStore } from './features/auth/store'
@@ -13,6 +14,8 @@ import { ContactForm } from './features/contacts/pages/ContactForm'
 import { ContactsList } from './features/contacts/pages/ContactsList'
 import { ProductForm } from './features/products/pages/ProductForm'
 import { ProductsList } from './features/products/pages/ProductsList'
+import { PurchaseForm } from './features/purchases/pages/PurchaseForm'
+import { PurchasesList } from './features/purchases/pages/PurchasesList'
 
 export default function App() {
   const initFromStorage = useAuthStore((s) => s.initFromStorage)
@@ -35,7 +38,9 @@ export default function App() {
           <Route index element={<Placeholder title="Inicio" />} />
           <Route path="pos" element={<Placeholder title="POS" />} />
           <Route path="ventas" element={<Placeholder title="Ventas" />} />
-          <Route path="compras" element={<Placeholder title="Compras" />} />
+          <Route path="compras" element={<PurchasesList />} />
+          <Route path="compras/nueva" element={<PurchaseForm />} />
+          <Route path="compras/:id" element={<PurchaseForm />} />
           <Route path="productos" element={<ProductsList />} />
           <Route path="productos/nuevo" element={<ProductForm />} />
           <Route path="productos/:id" element={<ProductForm />} />
@@ -48,6 +53,7 @@ export default function App() {
           <Route path="admin/currencies" element={<Currencies />} />
           <Route path="admin/categorias" element={<Categories />} />
           <Route path="admin/units" element={<UnitCatalog />} />
+          <Route path="admin/inventario-inicial" element={<InitialInventory />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

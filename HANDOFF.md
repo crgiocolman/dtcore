@@ -2,13 +2,13 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-05-28 — Fase 3 cerrada (productos + correcciones post-QA).
+**Última actualización:** 2026-06-01 — Bloques 4.1–4.5 cerrados (stock + backend compras + UI compras).
 
 ---
 
 ## Fase actual
 
-**Fase 3 completa.** Próximo: **Fase 4 — Compras + Inventario inicial**, empezando por bloque 4.1 (Backend stock_movements + stock_current).
+**Bloques 4.1–4.5 completos.** Próximo: **Bloque 4.6 — UI inventario inicial** (página `/admin/inventario-inicial`, tabla de productos con track_stock, consumir `POST /api/v1/stock/initial`).
 
 ---
 
@@ -20,9 +20,10 @@ Toda la documentación de diseño está cerrada. Los docs vivos son `HANDOFF.md`
 
 ## Estado del código
 
-- Backend: 9 modelos, ~20 tablas, auth + settings + currencies + contacts + productos completos. 144+ tests, todos pasan.
-- Frontend: layout con dark mode, auth con preservación de ruta tras F5, módulos completos de admin/settings, currencies, contacts, productos, categorías, unidades.
-- Migraciones aplicadas hasta head actual. Ver `alembic current` para revisión vigente.
+- Backend completo hasta compras: stock con lock pesimista + CPP (`stock_service.py`), compras draft→confirm→cancel (`purchase_service.py`), audit log en todas las mutaciones, endpoints `/api/v1/stock` y `/api/v1/purchases`. `deps.py` actualizado a `HTTPBearer`.
+- Frontend: layout dark mode, auth, admin/settings, currencies, contacts, productos, categorías, unidades, **lista de compras** (`/compras`) y **formulario** (`/compras/nueva`, `/compras/:id`) con modo edición (draft) y lectura (confirmed/cancelled), modal de confirmación con resumen de impacto en stock, modal de cancelación con motivo obligatorio, historial de auditoría (quién creó/confirmó/canceló con fecha).
+- `src/lib/format.ts` con `formatQuantity(value, unitType)` y `formatExchangeRate(value)`.
+- Migraciones aplicadas hasta head actual. Ver `alembic current`.
 
 ---
 
@@ -55,11 +56,23 @@ BACKUP_DRIVE_REMOTE_PATH=<configurar al desplegar>
 
 ## Próximo paso concreto
 
-**Bloque 4.1 — Backend stock_movements + stock_current.** Es el corazón del sistema de stock: ledger append-only, lock pesimista, CPP. Plan mode obligatorio. Tests primero donde sea posible. Ver prompt en `docs/prompts.md`.
+**Bloque 4.6 — UI inventario inicial.** Página `/admin/inventario-inicial`: tabla con todos los productos con `track_stock=true`, inputs de cantidad + costo por producto, botón "Cargar inventario inicial" que llama a `POST /api/v1/stock/initial` (ya creado en 4.1). Validar en frontend si el backend devuelve 409 por productos con movimientos previos. Solo visible para rol admin.
 
 ---
 
 ## Historial de fases
+
+### Fase 4 — Compras + Inventario, Bloques 4.1–4.5 (cerrado 2026-06-01)
+
+**4.1 — Backend stock:** ledger append-only (`stock_movements`) + cache `stock_current` con lock pesimista (`SELECT FOR UPDATE`). CPP en entradas, stock negativo controlado por settings. `apply_initial_inventory` two-pass anti-deadlock. Script `recalculate_stock.py`.
+
+**4.2 — Backend compras:** `purchase_service.py` con draft→confirm→cancel. `confirm_purchase` es transacción atómica (estado + movements ordenados por product_id + CPP). `cancel_purchase` genera `return_out` compensatorios. `generate_purchase_number` correlativo `YYYY-NNNNNN` con retry-on-IntegrityError. Audit log en create/update/confirm/cancel.
+
+**4.3 — UI lista:** `/compras` con tabla paginada, filtros, badges de estado, click a formulario.
+
+**4.4 — UI formulario:** `/compras/nueva` + `/compras/:id`. Autocomplete de proveedor y producto, IVA editable por ítem al agregar (inmutable en ítems guardados — snapshot), selector de moneda con TC sugerido, cálculo en vivo. Flujo en memoria → "Guardar borrador" → PATCH inmediato. Modal de confirmación con resumen de stock. `useItemFormShortcuts` (Enter/Esc), `formatQuantity`, `formatExchangeRate`.
+
+**4.5 — UI detalle/cancelación + audit log:** modo lectura para confirmed/cancelled, `CancelPurchaseModal` con motivo obligatorio (`.btn-danger`), sección "Historial" con timeline de create/confirm/cancel (quién + cuándo + motivo si aplica). Endpoint `GET /purchases/{id}/audit` agregado al backend.
 
 ### Fase 3 — Productos (cerrada 2026-05-28)
 

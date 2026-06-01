@@ -389,3 +389,43 @@ Si se ocultaran las inactivas, la UI daría la sensación de que la unidad "no e
 **Contraste con `product_units.is_active`:** ahí sí existe la distinción: inactivar una unidad la oculta del POS y de la selección de precios, pero la mantiene en el historial de movimientos. Por eso `product_units` conserva `is_active`.
 
 **Restore:** endpoint `POST /api/v1/products/{id}/restore` setea `deleted_at = null`. Disponible desde la lista con toggle "Mostrar eliminados" activado.
+
+---
+
+## IVA por ítem editable al agregar, inmutable después
+
+**Decisión:** Al agregar un ítem a una compra (borrador), el operador puede elegir la tasa de IVA (0%, 5%, 10%) para ese ítem, sobreescribiendo el default del producto. Una vez guardado, la tasa es inmutable: para cambiarla hay que eliminar el ítem y re-agregarlo.
+
+**Por qué editable al agregar:** El mismo producto puede comprarse con distintas tasas de IVA en distintos contextos (e.g., proveedor factura a tasa reducida por excepción, compra exenta por destino). El tax_rate del producto es un default razonable pero el dato definitivo viene de la factura del proveedor.
+
+**Por qué inmutable después:** El snapshot de `tax_rate` en `purchase_items` es parte de la trazabilidad contable. Permitir edición posterior crearía inconsistencias entre el subtotal/IVA ya calculados y el nuevo rate. La regla es: si el operador se equivocó, elimina el ítem y lo vuelve a agregar con la tasa correcta.
+
+**Trade-off aceptado:** El flujo de "eliminar y re-agregar" es levemente más costoso que "editar inline", pero garantiza que los snapshots de financieros en la fila (subtotal, tax_amount, total) siempre son consistentes con la tax_rate almacenada.
+
+---
+
+## Numeración correlativa de compras: SELECT MAX + retry optimista
+
+**Decisión:** `generate_purchase_number` usa `SELECT MAX(purchase_number) WHERE LIKE 'YYYY-%'` para calcular el siguiente número. No usa una tabla `counters` ni una secuencia PostgreSQL separada.
+
+**Por qué:**
+
+1. **Sin tabla adicional.** Crear una tabla `counters` o una secuencia por documento (purchase_seq, sale_seq, etc.) requiere migraciones y seed data adicional. Para v1 con baja concurrencia, la complejidad no se justifica.
+2. **La constraint es la red de seguridad.** `purchases.purchase_number` tiene `UNIQUE`. Si dos transacciones concurrentes calculan el mismo MAX y ambas intentan insertar el mismo número, la segunda falla con `IntegrityError`. El router de confirm captura ese error y reintenta una vez.
+3. **Bajo riesgo en la práctica.** La confirmación de compras es una operación de backoffice poco frecuente. Dos confirmaciones simultáneas que colisionen en el mismo milisegundo son extremadamente improbables.
+4. **`purchase_number = NULL` en draft.** El número se genera en `confirm_purchase`, no al crear el draft. Drafts tienen `purchase_number = NULL` (permitido por schema). Esto garantiza que números consecutivos reflejen el orden de confirmación, no de creación.
+
+**Trade-off descartado:** `SELECT ... FOR UPDATE` no aplica sobre resultados de funciones de agregado (`MAX`). Una secuencia PostgreSQL sería más robusta bajo alta concurrencia, pero requiere DDL y complejidad adicional que v1 no necesita.
+
+---
+
+## Límites de paginación en endpoints de lista
+
+**Decisión:** Default 50, máximo 500 para `GET /products`, `GET /stock/current`, `GET /stock/movements`.
+
+**Por qué 500 y no 100:** Operaciones batch de backoffice (inventario inicial, exportaciones) necesitan traer todos los registros en una sola request para mostrarlos en una UI de carga masiva. Con `le=100` el frontend de inventario inicial recibía 422 para `page_size=200`. 500 cubre catálogos realistas de v1 (clientes pequeños, &lt;500 SKUs con stock).
+
+**Si un cliente supera 500 productos en una operación:** replantear el flujo — paginación real en el cliente, endpoint dedicado de batch, o procesamiento por lotes en backend. El frontend de inventario inicial tiene un TODO marcando este umbral.
+
+**Trade-off aceptado:** Una request con 500 registros devuelve más datos que una paginada. Para v1 con catálogos pequeños el impacto es despreciable.
+

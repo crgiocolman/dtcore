@@ -404,20 +404,100 @@ Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, bo
 ### Bloque 4.1 — Backend stock_movements + stock_current
 
 ```
-Implementar bloque 4.1 siguiendo docs/roadmap.md, docs/erd.md, CLAUDE.md y docs/common-patterns.md (sección lock pesimista).
+Implementar bloque 4.1 siguiendo docs/roadmap.md, docs/erd.md, CLAUDE.md y
+docs/common-patterns.md (sección lock pesimista).
 
-- app/services/stock_service.py:
-  - apply_movement(...) — la función completa del patrón en docs/common-patterns.md
-  - get_current_stock(db, product_id, warehouse_id)
-  - get_stock_summary(db, warehouse_id) — lista todos los productos con su stock actual
-  - recalculate_stock_current() — script utilitario para reconstrucción
-- app/api/stock.py:
-  - GET /api/v1/stock?warehouse_id= — lista de stock actual
-  - GET /api/v1/stock/movements?product_id=&warehouse_id=&date_from=&date_to= — historial
-- scripts/recalculate_stock.py: comando standalone
-- Tests críticos: CPP correcto en compras múltiples, lock pesimista funciona (test con asyncio concurrente), validación de stock negativo según setting
+ESTE BLOQUE ES EL CORAZÓN DEL SISTEMA DE STOCK. Plan mode obligatorio.
+Tests primero donde sea posible (TDD).
 
-Este bloque es crítico. Plan mode obligatorio. Tests primero (TDD) si es posible.
+MODELOS (verificar contra erd.md):
+- StockMovement: ya existe en schema inicial. Verificar que el modelo SQLAlchemy
+  esté completo y los relationships funcionen.
+- StockCurrent: ya existe en schema inicial. Verificar PK compuesta (product_id, warehouse_id).
+
+SERVICE app/services/stock_service.py:
+
+- apply_movement(db, *, product_id, warehouse_id, movement_type, direction,
+  quantity_base, unit_cost_base=None, reference_type=None, reference_id=None,
+  user_id, notes=None) → StockMovement
+
+  Implementar EXACTAMENTE el patrón de docs/common-patterns.md sección
+  "Lock pesimista para actualización de stock". Atención especial a:
+  - SELECT ... FOR UPDATE sobre stock_current antes de cualquier modificación
+  - Si stock_current no existe para el producto+depósito, crearlo con qty=0, avg_cost=0
+  - Validación de stock negativo según setting allow_negative_stock (consultar
+    settings_service)
+  - Cálculo de CPP para direction=IN: nuevo_avg = (qty_actual * avg_actual +
+    qty_nueva * costo_nuevo) / (qty_actual + qty_nueva). Si stock_actual +
+    qty_nueva = 0 (caso edge), mantener avg_actual.
+  - Para direction=OUT, avg_cost_base NO se modifica
+  - Inserta StockMovement primero, después actualiza StockCurrent. Todo en la
+    transacción exterior — esta función NO hace commit.
+  - Excepciones custom: InsufficientStockError(product_id, available, requested),
+    InvalidStockMovementError (datos inconsistentes)
+
+- get_current_stock(db, product_id, warehouse_id=None) → StockCurrent | list[StockCurrent]
+  Si warehouse_id es None, devuelve stock en todos los depósitos para ese producto.
+
+- get_stock_summary(db, *, warehouse_id=None, search=None, low_stock_only=False,
+  page=1, page_size=50) → paginado
+  Lista productos con su stock actual. JOIN con products + units_catalog para
+  hidratar nombres. Filtros y paginación al estilo list_products.
+
+- get_movements(db, *, product_id=None, warehouse_id=None, reference_type=None,
+  reference_id=None, date_from=None, date_to=None, page=1, page_size=50) → paginado
+  Historial filtrable. Usado por kardex (Fase 6) y por vista detalle de compra/venta.
+
+- apply_initial_inventory(db, *, items: list[InitialInventoryItem],
+  warehouse_id, user_id) → list[StockMovement]
+
+  Cada item: product_id, quantity_base, unit_cost_base.
+  Validación CRÍTICA: para cada producto, verificar que NO existan movements
+  previos en ese depósito. Si los hay → InitialInventoryAlreadyAppliedError
+  con el product_id.
+  Ordenar items por product_id antes de aplicar (prevenir deadlocks).
+  Genera movements con movement_type='initial', direction='in'.
+
+- recalculate_stock_current(db, *, warehouse_id=None, product_id=None) → dict
+  Reconstruye stock_current desde el ledger. Útil para detectar inconsistencias
+  o recuperar tras corrupción. Itera movements cronológicamente, recalcula CPP,
+  upsertea stock_current. Devuelve dict {product_id: {qty, avg_cost}} con los
+  resultados.
+
+API app/api/stock.py:
+
+- GET /api/v1/stock?warehouse_id=&search=&low_stock_only=&page=&page_size=
+  → lista paginada de stock actual
+- GET /api/v1/stock/products/{product_id} → stock del producto en todos los depósitos
+- GET /api/v1/stock/movements?product_id=&warehouse_id=&date_from=&date_to=&page=&page_size=
+  → historial paginado
+- POST /api/v1/stock/initial → recibe lista de items + warehouse_id, aplica
+  inventario inicial. Body: { warehouse_id, items: [{product_id, quantity_base,
+  unit_cost_base}] }
+
+SCRIPT app/scripts/recalculate_stock.py:
+- Standalone: python -m app.scripts.recalculate_stock --warehouse <id>
+- Llama a stock_service.recalculate_stock_current
+- Muestra resumen de cambios aplicados
+
+PATRÓN OBLIGATORIO PARA EVITAR DEADLOCKS:
+Cuando una operación aplique múltiples movements en una transacción (confirm
+de compra/venta, inventario inicial), los items DEBEN procesarse ordenados
+por product_id (o tupla product_id + warehouse_id). Esto garantiza que todas
+las transacciones tomen locks en el mismo orden y previene deadlocks de PostgreSQL.
+
+TESTS CRÍTICOS (en app/tests/test_stock_service.py):
+- CPP correcto en compras múltiples del mismo producto con costos distintos
+- CPP correcto con cantidad fraccional (NUMERIC, no float)
+- Stock negativo bloqueado cuando allow_negative_stock=false
+- Stock negativo permitido cuando allow_negative_stock=true
+- Inventario inicial rechaza productos con movements previos
+- Inventario inicial ordena por product_id internamente (verificar con mock)
+- Lock pesimista: test con asyncio.gather() de dos apply_movement concurrentes
+  sobre el mismo producto, verificar que las cantidades finales son consistentes
+- recalculate_stock_current produce mismos valores que la suma incremental
+
+Plan mode obligatorio. Test-first donde sea posible.
 ```
 
 ### Bloque 4.2 — Backend compras
@@ -425,14 +505,102 @@ Este bloque es crítico. Plan mode obligatorio. Tests primero (TDD) si es posibl
 ```
 Implementar bloque 4.2 siguiendo docs/roadmap.md, docs/erd.md y CLAUDE.md.
 
-- app/services/purchase_service.py:
-  - create_purchase(db, data, user_id) — crea en draft
-  - add_item, update_item, remove_item — solo en draft
-  - confirm_purchase(db, purchase_id, user_id) — transacción atómica: cambio de estado + apply_movement por cada item (snapshot de quantity_base, exchange_rate, etc.)
-  - cancel_purchase(db, purchase_id, user_id, reason) — solo si está confirmed, genera movements compensatorios
-  - generate_purchase_number() — correlativo YYYY-NNNNNN
-- app/api/purchases.py: CRUD + POST /purchases/{id}/confirm + POST /purchases/{id}/cancel
-- Tests: confirm cambia stock y CPP correctamente, cancel genera compensación, no se puede confirmar dos veces
+Plan mode obligatorio.
+
+MODELOS:
+- Purchase y PurchaseItem ya existen en schema inicial. Verificar que estén
+  completos según erd.md y que los relationships estén bien.
+
+SERVICE app/services/purchase_service.py:
+
+- create_purchase(db, *, data, user_id) → Purchase
+  Crea cabecera con status='draft'. supplier_id debe ser contacto válido
+  (type=supplier o both, no borrado). Currency válida y activa. exchange_rate
+  obligatorio (si moneda != base, validar consistencia con exchange_rates vigente).
+  warehouse_id debe existir. Audit log con action='create'.
+
+- update_purchase(db, *, purchase_id, data, user_id) → Purchase
+  Solo permite cambios si status='draft'. Si confirmed/cancelled →
+  InvalidPurchaseStateError. Audit log con action='update'.
+
+- add_item(db, *, purchase_id, data, user_id) → PurchaseItem
+  Solo si status='draft'. Validaciones:
+    - product_id existe y no borrado
+    - product_unit_id existe, pertenece al producto, no inactivo
+    - quantity > 0
+    - unit_cost >= 0
+  Calcula snapshots:
+    - quantity_base = quantity * product_unit.factor_to_base
+    - unit_cost_base_currency = unit_cost * purchase.exchange_rate
+    - tax_rate = producto.tax_rate (snapshot)
+    - tax_included = producto.tax_included_in_price (snapshot)
+    - subtotal, tax_amount, total según las fórmulas estándar
+  Recalcula totales de la cabecera (subtotal, tax_total, total, total_base_currency).
+  Audit log con action='update' sobre la cabecera.
+
+- update_item(db, *, purchase_id, item_id, data, user_id) → PurchaseItem
+  Solo en draft. Recalcula snapshots y totales de cabecera.
+
+- remove_item(db, *, purchase_id, item_id, user_id) → None
+  Solo en draft. Hard delete (no soft, items son inseparables del header).
+  Recalcula totales de cabecera.
+
+- confirm_purchase(db, *, purchase_id, user_id) → Purchase
+  TRANSACCIÓN ATÓMICA. Plan mode estricto.
+    1. Validar status='draft' y que tiene al menos 1 item
+    2. Cambiar status='confirmed', setear confirmed_at, updated_by_user_id
+    3. Ordenar items por product_id (prevenir deadlocks — patrón obligatorio del 4.1)
+    4. Para cada item: stock_service.apply_movement(direction='in',
+       movement_type='purchase', reference_type='purchase', reference_id=purchase.id,
+       quantity_base=item.quantity_base, unit_cost_base=item.unit_cost_base_currency)
+    5. Audit log con action='confirm' sobre la cabecera
+  Si cualquier paso falla, rollback completo.
+
+- cancel_purchase(db, *, purchase_id, user_id, reason: str) → Purchase
+  Solo si status='confirmed'. Recibe reason obligatorio.
+    1. Cambiar status='cancelled', cancelled_at, cancelled_reason
+    2. Ordenar items por product_id
+    3. Para cada item: stock_service.apply_movement(direction='out',
+       movement_type='return_out', reference_type='purchase', reference_id=purchase.id,
+       quantity_base=item.quantity_base, unit_cost_base=item.unit_cost_base_currency)
+    4. Audit log con action='cancel'
+  CPP no se recalcula hacia atrás (decisión documentada en design-decisions.md).
+  Si cualquier paso falla, rollback completo.
+
+- list_purchases(db, *, supplier_id=None, status=None, date_from=None,
+  date_to=None, warehouse_id=None, page=1, page_size=20) → paginado
+  JOIN con contacts para hidratar nombre del proveedor.
+
+- get_purchase(db, purchase_id) → Purchase con items + supplier hidratados
+  Eager load con selectinload.
+
+- generate_purchase_number(db) → str
+  Formato YYYY-NNNNNN. Atómico contra race conditions: usar SELECT FOR UPDATE
+  sobre una tabla counters o similar, O usar SELECT MAX(...) con retry en
+  IntegrityError. Documentar la decisión en docs/design-decisions.md.
+
+API app/api/purchases.py:
+- GET /api/v1/purchases (lista paginada con filtros)
+- GET /api/v1/purchases/{id} (con items + supplier)
+- POST /api/v1/purchases (crea draft, 201)
+- PATCH /api/v1/purchases/{id} (actualiza cabecera en draft)
+- POST /api/v1/purchases/{id}/items (agrega item, 201)
+- PATCH /api/v1/purchases/{id}/items/{item_id}
+- DELETE /api/v1/purchases/{id}/items/{item_id} (204)
+- POST /api/v1/purchases/{id}/confirm (200, devuelve compra actualizada)
+- POST /api/v1/purchases/{id}/cancel (200, body con reason)
+- DELETE /api/v1/purchases/{id} (204, solo drafts, hard delete)
+
+TESTS:
+- confirm aplica movements correctos, actualiza CPP correctamente
+- confirm de compra USD aplica unit_cost_base_currency con conversion
+- cancel genera movements compensatorios sin recalcular CPP
+- No se puede confirmar dos veces
+- No se puede agregar items a compra confirmed
+- update_purchase rechaza cambios en confirmed
+- Deadlock prevention: items se ordenan por product_id antes de apply
+- generate_purchase_number es único bajo concurrencia (test con asyncio.gather)
+- Audit log se registra en create, update, confirm, cancel
 
 Plan mode obligatorio.
 ```
@@ -444,7 +612,7 @@ Implementar bloque 4.3 siguiendo docs/roadmap.md.
 
 - src/features/purchases/pages/PurchasesList.tsx: tabla con filtros (proveedor, fecha, estado)
 - Badge de estado con color (gris=draft, verde=confirmed, rojo=cancelled)
-- Click en fila → navega a detalle
+- Click en fila → si status=draft navega a `/compras/:id` en modo edición; si confirmed/cancelled navega a `/compras/:id` en modo lectura
 - Botón "Nueva compra"
 
 Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo. Estados: draft = text-text-secondary, confirmed = success-500, cancelled = danger-500.
@@ -461,6 +629,14 @@ Implementar bloque 4.4 siguiendo docs/roadmap.md.
   - Resumen: subtotal, IVA, total (en moneda de la compra y en PYG)
   - Botones: "Guardar como borrador", "Confirmar compra" (con modal de confirmación mostrando impacto en stock)
 - Modo edición: solo se puede editar si status=draft. Si confirmed, vista de solo lectura con botón "Cancelar compra"
+
+FLUJO DE CREACIÓN (consistente con productos y contactos):
+- /compras/nueva: formulario en memoria, sin draft creado todavía
+- Al hacer "Guardar como borrador" por primera vez: POST a /api/v1/purchases →
+  redirige a /compras/:id con el draft creado
+- A partir de ahí, cada cambio es PATCH/POST/DELETE inmediato sobre el draft
+- "Confirmar compra" solo disponible cuando hay al menos 1 item y todos los
+  campos requeridos están llenos
 
 Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo. Columnas numéricas con tabular-nums.
 ```
@@ -484,9 +660,9 @@ Implementar bloque 4.6 siguiendo docs/roadmap.md.
 
 - src/features/admin/pages/InitialInventory.tsx: tabla con todos los productos con track_stock=true
 - Por cada producto: input de cantidad inicial (en base_unit) + costo unitario inicial
-- Botón "Cargar inventario inicial" → para cada fila con cantidad > 0, llama a apply_movement con movement_type=initial
-- Validación: no permitir si ya hay movements para ese producto+warehouse
-- Backend: endpoint POST /api/v1/stock/initial que recibe lista de items
+- Botón "Cargar inventario inicial" → para cada fila con cantidad > 0, llama al endpoint POST /api/v1/stock/initial (ya creado en bloque 4.1)
+- Validación frontend: avisar al usuario si algún producto ya tiene movimientos previos (el backend devuelve 409 con la lista)
+- Solo accesible para rol admin
 
 Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo. Columnas numéricas con tabular-nums.
 ```

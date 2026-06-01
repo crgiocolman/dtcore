@@ -24,7 +24,7 @@ class Purchase(TimestampMixin, SoftDeleteMixin, AuditUserMixin, Base):
     __tablename__ = "purchases"
 
     id = Column(UUID(as_uuid=True), primary_key=True)
-    purchase_number = Column(String(30), nullable=False)
+    purchase_number = Column(String(30), nullable=True)
     supplier_id = Column(
         UUID(as_uuid=True),
         ForeignKey("contacts.id", ondelete="RESTRICT", name="fk_purchases_supplier_id"),
@@ -61,6 +61,7 @@ class Purchase(TimestampMixin, SoftDeleteMixin, AuditUserMixin, Base):
     notes = Column(Text, nullable=True)
     confirmed_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
+    cancelled_reason = Column(Text, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("purchase_number", name="uq_purchases_purchase_number"),

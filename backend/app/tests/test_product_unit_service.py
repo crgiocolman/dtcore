@@ -52,11 +52,19 @@ def _scalars_all(values: list):
     return r
 
 
+def _tuples_all(values: list):
+    inner = MagicMock()
+    inner.all.return_value = values
+    r = MagicMock()
+    r.tuples.return_value = inner
+    return r
+
+
 def _db_with_side_effects(results: list) -> AsyncMock:
     db = AsyncMock()
     db.execute.side_effect = results
     db.add = MagicMock()
-    db.delete = MagicMock()
+    db.delete = AsyncMock()
     return db
 
 
@@ -75,9 +83,9 @@ def _db_single_execute(result_mock) -> AsyncMock:
 
 class TestGetUnits:
     async def test_returns_all_units_for_product(self):
-        u1 = _make_unit(unit_name="unidad")
-        u2 = _make_unit(unit_name="caja")
-        db = _db_single_execute(_scalars_all([u1, u2]))
+        u1 = _make_unit()
+        u2 = _make_unit()
+        db = _db_single_execute(_tuples_all([(u1, MagicMock()), (u2, MagicMock())]))
 
         result = await get_units(db, uuid4())
 
@@ -122,52 +130,52 @@ class TestCreateUnit:
     async def test_creates_unit_with_correct_fields(self):
         product_id = uuid4()
         unit_id = uuid4()
+        unit_catalog_id = uuid4()
         data = ProductUnitCreate(
             id=unit_id,
-            unit_name="caja",
+            unit_catalog_id=unit_catalog_id,
             factor_to_base=Decimal("12"),
             is_default_sale_unit=False,
             is_default_purchase_unit=False,
         )
-        db = AsyncMock()
-        db.add = MagicMock()
+        # execute: catalog conflict check → no conflict
+        db = _db_with_side_effects([_scalar_one_or_none(None)])
 
         result = await create_unit(db, product_id, data=data)
 
         assert result.id == unit_id
-        assert result.unit_name == "caja"
+        assert result.unit_catalog_id == unit_catalog_id
         assert result.factor_to_base == Decimal("12")
         assert result.product_id == product_id
         db.add.assert_called_once()
 
     async def test_no_clear_when_flags_are_false(self):
-        """No execute calls when both default flags are False."""
+        """Only the catalog conflict check runs when both default flags are False."""
         data = ProductUnitCreate(
             id=uuid4(),
-            unit_name="caja",
+            unit_catalog_id=uuid4(),
             factor_to_base=Decimal("12"),
             is_default_sale_unit=False,
             is_default_purchase_unit=False,
         )
-        db = AsyncMock()
-        db.add = MagicMock()
+        db = _db_with_side_effects([_scalar_one_or_none(None)])  # catalog check → no conflict
 
         await create_unit(db, uuid4(), data=data)
 
-        db.execute.assert_not_called()
+        db.execute.assert_called_once()  # only catalog conflict check, no clear queries
 
     async def test_clears_previous_default_sale_unit(self):
         """Rule 5: setting is_default_sale_unit=True unsets the previous holder."""
         prev = _make_unit(is_default_sale_unit=True)
         data = ProductUnitCreate(
             id=uuid4(),
-            unit_name="caja",
+            unit_catalog_id=uuid4(),
             factor_to_base=Decimal("12"),
             is_default_sale_unit=True,
             is_default_purchase_unit=False,
         )
-        # One execute: _clear_default_flag for sale
-        db = _db_with_side_effects([_scalar_one_or_none(prev)])
+        # catalog check → no conflict; _clear_default_flag (sale) → prev
+        db = _db_with_side_effects([_scalar_one_or_none(None), _scalar_one_or_none(prev)])
 
         await create_unit(db, uuid4(), data=data)
 
@@ -178,12 +186,13 @@ class TestCreateUnit:
         prev = _make_unit(is_default_purchase_unit=True)
         data = ProductUnitCreate(
             id=uuid4(),
-            unit_name="docena",
+            unit_catalog_id=uuid4(),
             factor_to_base=Decimal("12"),
             is_default_sale_unit=False,
             is_default_purchase_unit=True,
         )
-        db = _db_with_side_effects([_scalar_one_or_none(prev)])
+        # catalog check → no conflict; _clear_default_flag (purchase) → prev
+        db = _db_with_side_effects([_scalar_one_or_none(None), _scalar_one_or_none(prev)])
 
         await create_unit(db, uuid4(), data=data)
 
@@ -195,12 +204,14 @@ class TestCreateUnit:
         prev_purchase = _make_unit(is_default_sale_unit=False, is_default_purchase_unit=True)
         data = ProductUnitCreate(
             id=uuid4(),
-            unit_name="pallet",
+            unit_catalog_id=uuid4(),
             factor_to_base=Decimal("100"),
             is_default_sale_unit=True,
             is_default_purchase_unit=True,
         )
+        # catalog check → no conflict; clear sale → prev_sale; clear purchase → prev_purchase
         db = _db_with_side_effects([
+            _scalar_one_or_none(None),
             _scalar_one_or_none(prev_sale),
             _scalar_one_or_none(prev_purchase),
         ])
@@ -223,13 +234,14 @@ class TestUpdateUnit:
         with pytest.raises(ProductUnitNotFoundError):
             await update_unit(db, uuid4(), uuid4(), data=ProductUnitUpdate())
 
-    async def test_updates_unit_name(self):
-        unit = _make_unit(unit_name="viejo")
+    async def test_updates_unit_catalog_id(self):
+        new_catalog_id = uuid4()
+        unit = _make_unit()
         db = _db_single_execute(_scalar_one_or_none(unit))
 
-        await update_unit(db, unit.product_id, unit.id, data=ProductUnitUpdate(unit_name="nuevo"))
+        await update_unit(db, unit.product_id, unit.id, data=ProductUnitUpdate(unit_catalog_id=new_catalog_id))
 
-        assert unit.unit_name == "nuevo"
+        assert unit.unit_catalog_id == new_catalog_id
 
     # --- Rule 4 ---
 

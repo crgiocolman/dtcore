@@ -180,33 +180,47 @@ Fases organizadas verticalmente por módulo end-to-end (backend + frontend junto
 
 ## Fase 4 — Compras + Inventario inicial
 
-**Objetivo:** registrar compras. Al confirmar, el stock se actualiza correctamente con CPP. Esta fase activa el flujo de stock por primera vez.
+**Objetivo:** registrar compras. Al confirmar, el stock se actualiza correctamente con CPP. Esta fase activa el ledger de stock por primera vez. Cualquier bug en lock pesimista, CPP o conversión de unidades aparece acá — vale la pena no apurar.
 
 **Bloques:**
 
-- **4.1 — Backend stock_movements + stock_current**
-  - Modelos
+- **4.1 — Backend stock_movements + stock_current** ✅ 2026-05-29
+  - Modelos (ya en schema inicial, verificar)
   - Service `stock_service.py` con funciones:
-    - `apply_movement(movement)` — inserta movement + actualiza stock_current con lock pesimista, calcula CPP en ingresos
-    - `get_current_stock(product_id, warehouse_id)`
-    - `recalculate_stock_current()` — utilidad para reconstrucción desde movements
-  - Endpoints `GET /stock?warehouse_id=`, `GET /stock/movements?product_id=`
+    - `apply_movement(...)` — inserta movement + actualiza stock_current con lock pesimista, calcula CPP en ingresos
+    - `get_current_stock(product_id, warehouse_id=None)` — uno o todos los depósitos
+    - `get_stock_summary(warehouse_id, filtros, paginación)` — lista paginada de productos con su stock actual
+    - `get_movements(filtros, paginación)` — historial filtrable (usado por kardex y vista de compra/venta)
+    - `apply_initial_inventory(items, warehouse_id, user_id)` — carga inventario inicial; rechaza productos con movements previos
+    - `recalculate_stock_current(warehouse_id=None, product_id=None)` — utilidad para reconstrucción desde movements
+  - Patrón obligatorio: items se procesan ordenados por `product_id` para prevenir deadlocks
+  - Endpoints:
+    - `GET /api/v1/stock?warehouse_id=&search=&low_stock_only=&page=&page_size=`
+    - `GET /api/v1/stock/products/{product_id}` (stock en todos los depósitos)
+    - `GET /api/v1/stock/movements?product_id=&warehouse_id=&date_from=&date_to=&page=&page_size=`
+    - `POST /api/v1/stock/initial` (recibe lista de items + warehouse_id)
+  - Script standalone `app/scripts/recalculate_stock.py`
 
-- **4.2 — Backend compras**
-  - Modelos `purchases` y `purchase_items`
+- **4.2 — Backend compras** ✅ 2026-06-01
+  - Modelos `purchases` y `purchase_items` (ya en schema inicial, verificar)
   - Service `purchase_service.py` con:
     - `create_purchase()` — crea cabecera en draft
-    - `add_item()`, `update_item()`, `remove_item()` — items en draft
-    - `confirm_purchase()` — transacción atómica: confirma + genera movements + actualiza stock con CPP
-    - `cancel_purchase()` — genera movimientos compensatorios
-  - Generación de `purchase_number` correlativo
-  - Endpoints CRUD + `POST /purchases/{id}/confirm`, `POST /purchases/{id}/cancel`
+    - `update_purchase()` — actualiza cabecera solo en draft
+    - `list_purchases()` — lista paginada con JOIN a contacts
+    - `get_purchase()` — cabecera + items + supplier hidratados
+    - `add_item()`, `update_item()`, `remove_item()` — items solo en draft; calcula snapshots (quantity_base, unit_cost_base_currency, tax_rate, tax_included); recalcula totales de cabecera
+    - `confirm_purchase()` — transacción atómica: cambio de estado + apply_movement por cada item (ordenado por product_id, anti-deadlock) + actualiza stock con CPP
+    - `cancel_purchase()` — recibe motivo; genera movimientos compensatorios (CPP no se recalcula hacia atrás)
+    - `generate_purchase_number()` — correlativo `YYYY-NNNNNN`, atómico bajo concurrencia
+  - Audit log en create / update / confirm / cancel
+  - Endpoints CRUD + items anidados + `POST /purchases/{id}/confirm` + `POST /purchases/{id}/cancel`
 
-- **4.3 — UI lista de compras**
+- **4.3 — UI lista de compras** ✅ 2026-06-01
   - Página `/compras` con tabla, filtros por proveedor, fecha, estado
   - Indicador de estado (draft / confirmed / cancelled)
+  - Click en fila: si status=draft → modo edición; si confirmed/cancelled → modo lectura
 
-- **4.4 — UI formulario de compra**
+- **4.4 — UI formulario de compra** ✅ 2026-06-01
   - Página `/compras/nueva` y `/compras/:id`
   - Selector de proveedor (autocomplete sobre `contacts`)
   - Selector de moneda + tipo de cambio (sugiere el vigente, editable)
@@ -214,14 +228,16 @@ Fases organizadas verticalmente por módulo end-to-end (backend + frontend junto
   - Cálculo en vivo de subtotal, IVA, total
   - Botones: Guardar como borrador / Confirmar / Cancelar
   - Al confirmar: confirmación visual con resumen de impacto en stock
+  - Flujo: formulario en memoria → primer "Guardar como borrador" crea el draft en backend y redirige a `/compras/:id` → cambios posteriores son inmediatos sobre el draft
 
-- **4.5 — UI vista detalle de compra**
-  - Página `/compras/:id` en modo lectura para compras confirmadas
-  - Botón "Cancelar compra" con confirmación y motivo
+- **4.5 — UI vista detalle de compra** ✅ 2026-06-01
+  - Página `/compras/:id` en modo lectura para compras confirmadas/canceladas
+  - Botón "Cancelar compra" con modal y motivo obligatorio
+  - Historial de auditoría: quién creó, confirmó y canceló la compra (con fecha y motivo)
 
 - **4.6 — UI inventario inicial**
   - Funcionalidad para cargar stock inicial (sin compra real)
-  - Usa `stock_movements` con `movement_type='initial'`
+  - Consume el endpoint `POST /api/v1/stock/initial` ya creado en bloque 4.1
   - Página `/admin/inventario-inicial` con tabla de productos + input de cantidad y costo
 
 **Entregable:** el cliente puede registrar compras reales y ver su stock acumularse. Primera medición útil del modelo de CPP. Si hay bugs en el cálculo, se detectan acá.

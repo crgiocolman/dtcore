@@ -96,12 +96,13 @@ class TestGetProduct:
 class TestCreateProduct:
     async def test_creates_product_with_correct_fields(self):
         product_id = uuid4()
+        base_unit_id = uuid4()
         user_id = uuid4()
         data = ProductCreate(
             id=product_id,
             sku="CINTA-50MM",
             name="Cinta adhesiva 50mm",
-            base_unit="rollo",
+            base_unit_id=base_unit_id,
             tax_rate=Decimal("10.00"),
         )
         # execute: SKU check → no conflict
@@ -112,12 +113,12 @@ class TestCreateProduct:
         assert result.id == product_id
         assert result.sku == "CINTA-50MM"
         assert result.name == "Cinta adhesiva 50mm"
-        assert result.base_unit == "rollo"
+        assert result.base_unit_id == base_unit_id
         assert result.created_by_user_id == user_id
         assert result.updated_by_user_id == user_id
 
     async def test_adds_product_base_unit_and_audit_log_to_session(self):
-        data = ProductCreate(id=uuid4(), sku="SKU-X", name="Producto X", base_unit="unidad")
+        data = ProductCreate(id=uuid4(), sku="SKU-X", name="Producto X", base_unit_id=uuid4())
         db = _db_with_side_effects([_scalar_one_or_none(None)])  # SKU check
 
         await create_product(db, data=data, user_id=uuid4())
@@ -125,7 +126,7 @@ class TestCreateProduct:
         assert db.add.call_count == 3  # product + base unit + audit log
 
     async def test_no_base_unit_when_track_stock_false(self):
-        data = ProductCreate(id=uuid4(), sku="SKU-X2", name="Servicio", base_unit="hora", track_stock=False)
+        data = ProductCreate(id=uuid4(), sku="SKU-X2", name="Servicio", base_unit_id=uuid4(), track_stock=False)
         db = _db_with_side_effects([_scalar_one_or_none(None)])  # SKU check
 
         await create_product(db, data=data, user_id=uuid4())
@@ -133,7 +134,7 @@ class TestCreateProduct:
         assert db.add.call_count == 2  # product + audit log only
 
     async def test_default_tax_rate_is_10(self):
-        data = ProductCreate(id=uuid4(), sku="SKU-Y", name="Y", base_unit="kg")
+        data = ProductCreate(id=uuid4(), sku="SKU-Y", name="Y", base_unit_id=uuid4())
         db = _db_with_side_effects([_scalar_one_or_none(None)])
 
         result = await create_product(db, data=data, user_id=uuid4())
@@ -141,7 +142,7 @@ class TestCreateProduct:
         assert result.tax_rate == Decimal("10.00")
 
     async def test_track_stock_defaults_to_true(self):
-        data = ProductCreate(id=uuid4(), sku="SKU-Z", name="Z", base_unit="unidad")
+        data = ProductCreate(id=uuid4(), sku="SKU-Z", name="Z", base_unit_id=uuid4())
         db = _db_with_side_effects([_scalar_one_or_none(None)])
 
         result = await create_product(db, data=data, user_id=uuid4())
@@ -150,7 +151,7 @@ class TestCreateProduct:
 
     async def test_checks_barcode_when_provided(self):
         data = ProductCreate(
-            id=uuid4(), sku="SKU-B", name="B", base_unit="unidad", barcode="7890001234567"
+            id=uuid4(), sku="SKU-B", name="B", base_unit_id=uuid4(), barcode="7890001234567"
         )
         # execute: SKU check → no conflict; barcode check → no conflict
         db = _db_with_side_effects([_scalar_one_or_none(None), _scalar_one_or_none(None)])
@@ -161,7 +162,7 @@ class TestCreateProduct:
         assert result.barcode == "7890001234567"
 
     async def test_raises_sku_conflict(self):
-        data = ProductCreate(id=uuid4(), sku="EXISTING", name="X", base_unit="unidad")
+        data = ProductCreate(id=uuid4(), sku="EXISTING", name="X", base_unit_id=uuid4())
         # SKU check returns an existing ID → conflict
         db = _db_with_side_effects([_scalar_one_or_none(uuid4())])
 
@@ -172,7 +173,7 @@ class TestCreateProduct:
 
     async def test_raises_barcode_conflict(self):
         data = ProductCreate(
-            id=uuid4(), sku="NEW-SKU", name="X", base_unit="unidad", barcode="7890001234567"
+            id=uuid4(), sku="NEW-SKU", name="X", base_unit_id=uuid4(), barcode="7890001234567"
         )
         # SKU ok, barcode conflict
         db = _db_with_side_effects([
@@ -187,7 +188,7 @@ class TestCreateProduct:
 
     async def test_sku_conflict_is_case_insensitive(self):
         """Creating 'cinta' when 'CINTA' exists must raise conflict."""
-        data = ProductCreate(id=uuid4(), sku="cinta", name="X", base_unit="unidad")
+        data = ProductCreate(id=uuid4(), sku="cinta", name="X", base_unit_id=uuid4())
         db = _db_with_side_effects([_scalar_one_or_none(uuid4())])
 
         with pytest.raises(ProductSKUConflictError):

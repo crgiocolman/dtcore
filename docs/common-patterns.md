@@ -433,6 +433,55 @@ Si en el futuro se agrega un tipo nuevo que falle, extender `_json_default` en `
 
 ---
 
+## Helpers de formateo numérico (`src/lib/format.ts`)
+
+Funciones para mostrar cantidades y tipos de cambio respetando las convenciones locales (es-PY: punto como separador de miles, coma como decimal).
+
+```typescript
+import { formatQuantity, formatExchangeRate } from '../../../lib/format'
+
+// Cantidad según tipo de unidad
+formatQuantity('3', 'count')    // "3"      — sin decimales
+formatQuantity('3.5', 'weight') // "3,5"    — hasta 3 decimales, sin trailing zeros
+formatQuantity('3.500', 'weight') // "3,5"  — trailing zeros eliminados
+
+// Tipo de cambio
+formatExchangeRate('7400')      // "7.400"  — sin parte decimal → entero con separador de miles
+formatExchangeRate('7400.50')   // "7.400,50" — con decimales → hasta 2
+```
+
+**Regla:** el backend siempre guarda `NUMERIC(18,4)` / `NUMERIC(18,6)` con precisión completa. Los helpers solo afectan la presentación.
+
+**Cuándo usar cada uno:**
+- `formatQuantity`: cualquier columna o campo que muestre una cantidad de stock o de ítem
+- `formatExchangeRate`: campo TC en cabecera de compra/venta (editable e read-only)
+
+---
+
+## Atajos de teclado en formularios de ítems (`useItemFormShortcuts`)
+
+Hook para agregar ítems con teclado sin usar el mouse. Pensado para compras, ventas y POS.
+
+```typescript
+// src/features/purchases/hooks/useItemFormShortcuts.ts
+import { useItemFormShortcuts } from '../hooks/useItemFormShortcuts'
+
+const { onKeyDown: onItemInputKeyDown } = useItemFormShortcuts(handleAddItem, clearItemForm)
+
+// Aplicar en inputs type="text" y type="number" (NO en <select>)
+<input ... onKeyDown={onItemInputKeyDown} />
+```
+
+**Comportamiento:**
+- `Enter` en cualquier input text/number del formulario → llama `onAdd` (equivalente a click en "Agregar ítem")
+- `Escape` → llama `onClear` (limpia el formulario, devuelve foco al campo de producto)
+
+**Por qué no en `<select>`:** `Enter` en un `<select>` tiene comportamiento nativo del browser (cierra el dropdown). Capturarlo rompería la navegación con teclado.
+
+**Nota de implementación:** el hook no usa React hooks internos (sin `useState`/`useEffect`). Es una función que retorna un event handler. Debe llamarse después de que `onAdd` y `onClear` estén definidos como `const` en el componente.
+
+---
+
 Patrones que no han aparecido todavía pero se esperan:
 - Estructura de service con `get_or_404`, `create`, `update`, `delete`
 - Estructura de router con dependencias de auth y db

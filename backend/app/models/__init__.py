@@ -2,6 +2,7 @@ from app.models.users import User
 from app.models.settings import Setting
 from app.models.currencies import Currency, ExchangeRate
 from app.models.contacts import Contact
+from app.models.unit_catalog import UnitCatalog
 from app.models.products import ProductCategory, Product, ProductUnit, ProductPrice
 from app.models.inventory import (
     Warehouse,
@@ -20,6 +21,7 @@ __all__ = [
     "Currency",
     "ExchangeRate",
     "Contact",
+    "UnitCatalog",
     "ProductCategory",
     "Product",
     "ProductUnit",

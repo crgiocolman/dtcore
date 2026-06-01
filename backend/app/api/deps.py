@@ -1,7 +1,8 @@
 import logging
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,9 +13,11 @@ from app.services import auth_service
 
 logger = logging.getLogger(__name__)
 
+_bearer_scheme = HTTPBearer()
+
 
 async def get_current_user(
-    authorization: str = Header(...),
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     credentials_exception = HTTPException(
@@ -23,10 +26,7 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    if not authorization.startswith("Bearer "):
-        raise credentials_exception
-
-    token = authorization.removeprefix("Bearer ")
+    token = credentials.credentials
 
     try:
         payload = auth_service.decode_token(token)
