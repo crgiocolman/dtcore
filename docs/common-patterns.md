@@ -482,6 +482,44 @@ const { onKeyDown: onItemInputKeyDown } = useItemFormShortcuts(handleAddItem, cl
 
 ---
 
+## Hook `useKeyboardShortcuts`
+
+Para atajos globales de teclado en pantallas completas (POS, modales complejos).
+
+```typescript
+import { useKeyboardShortcuts } from '../../../lib/hooks/useKeyboardShortcuts'
+
+// Básico: F1–F9 en el POS
+useKeyboardShortcuts({
+  F1: () => setShowHelp(true),
+  F2: () => { if (!anyModalOpen) setShowCustomer(true) },
+  F9: () => { if (!anyModalOpen) handleClearCart() },
+})
+
+// Con opciones
+useKeyboardShortcuts(
+  { Escape: () => onClose() },
+  { ignoreInputs: true },  // no dispara dentro de inputs/textareas
+)
+
+// Deshabilitar condicionalmente
+useKeyboardShortcuts(
+  { F4: () => confirmPayment() },
+  { enabled: !paymentConfirming },
+)
+```
+
+**Comportamiento:**
+- Llama `e.preventDefault()` antes de invocar el handler.
+- `enabled: false` (default `true`) no agrega los listeners. Útil para deshabilitar durante loading.
+- `ignoreInputs: true` (default `false`) omite el shortcut si el foco está en `INPUT`, `TEXTAREA` o elemento `contentEditable`.
+- Los handlers se leen con `useRef` → siempre capturan el estado actual sin re-registrar listeners.
+- Cleanup automático en unmount.
+
+**Cuándo no usar este hook:** dentro de un modal con su propio listener de `Escape` (los modales del POS manejan Escape internamente con `useEffect` propio para mayor control).
+
+---
+
 Patrones que no han aparecido todavía pero se esperan:
 - Estructura de service con `get_or_404`, `create`, `update`, `delete`
 - Estructura de router con dependencias de auth y db

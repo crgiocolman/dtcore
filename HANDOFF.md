@@ -2,13 +2,13 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-06-01 — Bloques 4.1–4.5 cerrados (stock + backend compras + UI compras).
+**Última actualización:** 2026-06-01 — Fase 5 cerrada (ventas + POS completo).
 
 ---
 
 ## Fase actual
 
-**Bloques 4.1–4.5 completos.** Próximo: **Bloque 4.6 — UI inventario inicial** (página `/admin/inventario-inicial`, tabla de productos con track_stock, consumir `POST /api/v1/stock/initial`).
+**Fase 5 completa.** Próximo: **Fase 6 — Ajustes de stock + reportes básicos**, comenzando por **Bloque 6.1 — Backend ajustes** (`stock_adjustments`, `stock_adjustment_items`, draft→confirm→cancel).
 
 ---
 
@@ -20,9 +20,10 @@ Toda la documentación de diseño está cerrada. Los docs vivos son `HANDOFF.md`
 
 ## Estado del código
 
-- Backend completo hasta compras: stock con lock pesimista + CPP (`stock_service.py`), compras draft→confirm→cancel (`purchase_service.py`), audit log en todas las mutaciones, endpoints `/api/v1/stock` y `/api/v1/purchases`. `deps.py` actualizado a `HTTPBearer`.
-- Frontend: layout dark mode, auth, admin/settings, currencies, contacts, productos, categorías, unidades, **lista de compras** (`/compras`) y **formulario** (`/compras/nueva`, `/compras/:id`) con modo edición (draft) y lectura (confirmed/cancelled), modal de confirmación con resumen de impacto en stock, modal de cancelación con motivo obligatorio, historial de auditoría (quién creó/confirmó/canceló con fecha).
-- `src/lib/format.ts` con `formatQuantity(value, unitType)` y `formatExchangeRate(value)`.
+- Backend completo hasta ventas: stock + CPP, compras draft→confirm→cancel, ventas draft→confirm→cancel con lock pesimista, validación de pagos, `sale_number` correlativo. `SaleItemOut` devuelve `product_name` y `unit_name` hidratados via JOIN.
+- Frontend: layout dark mode, auth, admin completo (settings, currencies, categorías, unidades, inventario inicial), contacts, productos, **compras** (`/compras`, `/compras/:id`), **POS** (`/pos`) full-screen con carrito, atajos F1–F9, pagos mixtos, mensaje de error de stock detallado. **Ventas** (`/ventas`) con tabla paginada, filtros, modal de detalle (items + pagos + totales) y cancelación con motivo.
+- `src/lib/hooks/useKeyboardShortcuts.ts` — hook global de atajos reutilizable.
+- Migración `d056943fbd91` aplicada: `sale_number` nullable (asignado al confirmar, no al crear draft).
 - Migraciones aplicadas hasta head actual. Ver `alembic current`.
 
 ---
@@ -56,13 +57,23 @@ BACKUP_DRIVE_REMOTE_PATH=<configurar al desplegar>
 
 ## Próximo paso concreto
 
-**Bloque 4.6 — UI inventario inicial.** Página `/admin/inventario-inicial`: tabla con todos los productos con `track_stock=true`, inputs de cantidad + costo por producto, botón "Cargar inventario inicial" que llama a `POST /api/v1/stock/initial` (ya creado en 4.1). Validar en frontend si el backend devuelve 409 por productos con movimientos previos. Solo visible para rol admin.
+**Bloque 6.1 — Backend ajustes de stock.** Modelos `stock_adjustments` y `stock_adjustment_items`, service con draft→confirm→cancel, confirmación genera `stock_movements` + actualiza `stock_current`, endpoints CRUD + confirm + cancel. Motivos de ajuste: enum o texto libre (decidir en diseño).
 
 ---
 
 ## Historial de fases
 
-### Fase 4 — Compras + Inventario, Bloques 4.1–4.5 (cerrado 2026-06-01)
+### Fase 5 — Ventas (POS) (cerrada 2026-06-01)
+
+**5.1 — Backend ventas:** `sale_service.py` con draft→confirm→cancel. `confirm_sale` transacción atómica (lock pesimista, snapshot de costos, movements, `sale_number` correlativo). `cancel_sale` genera `return_in` compensatorios. `PaymentSumMismatchError` valida que suma de pagos = total. `sale_number` nullable hasta confirmación (migración `d056943fbd91`).
+
+**5.2–5.5 — POS:** pantalla full-screen sin sidebar. Búsqueda de productos (SKU/barcode/nombre, debounce 200ms), carrito con edición inline, cálculo en vivo (IVA incluido/excluido), selector de cliente (F2), descuentos item y cabecera (F3), pagos mixtos (F4) con validación suma=total. Error de stock insuficiente muestra producto + disponible + solicitado.
+
+**5.6 — Lista de ventas:** `/ventas` con tabla paginada, filtros (estado, cliente, fechas), modal de detalle con items (product_name hidratado via JOIN), pagos y totales, botón "Cancelar venta" con motivo obligatorio (`.btn-danger`). `SaleItemOut` extendido con `product_name` y `unit_name`.
+
+**5.7 — Shortcuts:** `useKeyboardShortcuts` hook reutilizable en `src/lib/hooks/`. F1–F9 en POS, F1 abre modal de ayuda. Sonido al confirmar venta diferido a Fase 7.
+
+### Fase 4 — Compras + Inventario, Bloques 4.1–4.6 (cerrado 2026-06-01)
 
 **4.1 — Backend stock:** ledger append-only (`stock_movements`) + cache `stock_current` con lock pesimista (`SELECT FOR UPDATE`). CPP en entradas, stock negativo controlado por settings. `apply_initial_inventory` two-pass anti-deadlock. Script `recalculate_stock.py`.
 
@@ -73,6 +84,8 @@ BACKUP_DRIVE_REMOTE_PATH=<configurar al desplegar>
 **4.4 — UI formulario:** `/compras/nueva` + `/compras/:id`. Autocomplete de proveedor y producto, IVA editable por ítem al agregar (inmutable en ítems guardados — snapshot), selector de moneda con TC sugerido, cálculo en vivo. Flujo en memoria → "Guardar borrador" → PATCH inmediato. Modal de confirmación con resumen de stock. `useItemFormShortcuts` (Enter/Esc), `formatQuantity`, `formatExchangeRate`.
 
 **4.5 — UI detalle/cancelación + audit log:** modo lectura para confirmed/cancelled, `CancelPurchaseModal` con motivo obligatorio (`.btn-danger`), sección "Historial" con timeline de create/confirm/cancel (quién + cuándo + motivo si aplica). Endpoint `GET /purchases/{id}/audit` agregado al backend.
+
+**4.6 — UI inventario inicial:** página `/admin/inventario-inicial` con tabla de productos (`track_stock=true`), inputs de cantidad + costo, llama a `POST /api/v1/stock/initial`. Detecta 409 por productos con movimientos previos.
 
 ### Fase 3 — Productos (cerrada 2026-05-28)
 

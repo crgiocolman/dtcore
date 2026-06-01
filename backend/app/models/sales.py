@@ -32,7 +32,7 @@ class Sale(TimestampMixin, SoftDeleteMixin, AuditUserMixin, Base):
     __tablename__ = "sales"
 
     id = Column(UUID(as_uuid=True), primary_key=True)
-    sale_number = Column(String(30), nullable=False)
+    sale_number = Column(String(30), nullable=True)
     customer_id = Column(
         UUID(as_uuid=True),
         ForeignKey("contacts.id", ondelete="RESTRICT", name="fk_sales_customer_id"),

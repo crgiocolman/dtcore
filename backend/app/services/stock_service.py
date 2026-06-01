@@ -22,10 +22,17 @@ logger = logging.getLogger(__name__)
 
 
 class InsufficientStockError(Exception):
-    def __init__(self, product_id: UUID, available: Decimal, requested: Decimal) -> None:
+    def __init__(
+        self,
+        product_id: UUID,
+        available: Decimal,
+        requested: Decimal,
+        product_name: str | None = None,
+    ) -> None:
         self.product_id = product_id
         self.available = available
         self.requested = requested
+        self.product_name = product_name
         super().__init__(
             f"Stock insuficiente para {product_id}: disponible={available}, solicitado={requested}"
         )
@@ -86,7 +93,13 @@ async def apply_movement(
     if direction == StockDirection.OUT:
         allow_negative = await settings_service.get_setting(db, "allow_negative_stock")
         if not allow_negative and current.quantity_base < quantity_base:
-            raise InsufficientStockError(product_id, current.quantity_base, quantity_base)
+            product = await db.get(Product, product_id)
+            raise InsufficientStockError(
+                product_id,
+                current.quantity_base,
+                quantity_base,
+                product_name=product.name if product else None,
+            )
 
     # 4. Registrar el movimiento (ledger append-only)
     movement = StockMovement(

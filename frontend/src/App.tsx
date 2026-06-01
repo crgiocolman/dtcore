@@ -16,6 +16,8 @@ import { ProductForm } from './features/products/pages/ProductForm'
 import { ProductsList } from './features/products/pages/ProductsList'
 import { PurchaseForm } from './features/purchases/pages/PurchaseForm'
 import { PurchasesList } from './features/purchases/pages/PurchasesList'
+import { POS } from './features/pos/pages/POS'
+import { SalesList } from './features/sales/pages/SalesList'
 
 export default function App() {
   const initFromStorage = useAuthStore((s) => s.initFromStorage)
@@ -28,6 +30,11 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+
+        {/* POS: pantalla completa sin AppLayout */}
+        <Route path="pos" element={<RequireAuth><POS /></RequireAuth>} />
+
+        {/* Resto: con AppLayout + sidebar */}
         <Route
           element={
             <RequireAuth>
@@ -36,8 +43,7 @@ export default function App() {
           }
         >
           <Route index element={<Placeholder title="Inicio" />} />
-          <Route path="pos" element={<Placeholder title="POS" />} />
-          <Route path="ventas" element={<Placeholder title="Ventas" />} />
+          <Route path="ventas" element={<SalesList />} />
           <Route path="compras" element={<PurchasesList />} />
           <Route path="compras/nueva" element={<PurchaseForm />} />
           <Route path="compras/:id" element={<PurchaseForm />} />
