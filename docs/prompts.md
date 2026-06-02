@@ -873,15 +873,49 @@ Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, bo
 ```
 Implementar bloque 7.1 siguiendo docs/roadmap.md y CLAUDE.md.
 
-- Configuración pytest con fixtures de BD de tests (transacción por test con rollback)
-- Tests prioritarios:
-  - stock_service: apply_movement (CPP, lock, stock negativo), recalculate
-  - purchase_service: confirm (genera movements + actualiza stock), cancel (compensación)
-  - sale_service: confirm (lock, snapshot de costo, validación de stock, pagos mixtos), cancel
-  - settings_service: parseo de cada value_type
-  - price_service: precio vigente con múltiples cambios de fecha
-- Coverage objetivo ≥80% en services
-- Documentar cómo correr tests en docs/comandos.md
+CONFIGURACIÓN DE TESTS:
+- pytest con pytest-asyncio y httpx para tests de API
+- BD de tests separada: usar DATABASE_URL_TEST en .env.test
+- Fixture session-scoped que crea la BD de tests al inicio y la borra al final
+- Fixture function-scoped con transacción + rollback por test
+- pytest.ini con asyncio_mode = auto
+
+SERVICES A CUBRIR (orden de prioridad):
+1. stock_service: apply_movement (CPP correcto con compras múltiples, lock
+   pesimista con asyncio.gather, stock negativo según setting, casos edge
+   qty+nueva=0); apply_initial_inventory (rechaza productos con movements
+   previos, ordena por product_id); recalculate_stock_current (consistencia
+   ledger vs cache)
+2. purchase_service: confirm (movements correctos, CPP actualizado, audit log),
+   cancel (compensación sin recalcular CPP), no se puede confirmar dos veces,
+   compra en USD aplica conversión correcta
+3. sale_service: confirm (lock, snapshot de costo, validación de stock,
+   suma de payments=total, requires_customer setting), cancel (compensación),
+   pagos mixtos
+4. adjustment_service: confirm (movements según direction), cancel (compensación),
+   manejo de cancel cuando original era OUT sin costo
+5. price_service: precio vigente con múltiples cambios, rechazo de fechas
+   anteriores al último
+6. report_service: cada función con datos seed que cubra ventas multimoneda,
+   cancelaciones, casos vacíos, y los bugs encontrados durante QA cruzado
+   (si los hay)
+7. settings_service: parseo de cada value_type, cache invalidation
+
+REGRESIONES BASADAS EN QA REAL:
+Agregar al menos un test por cada bug encontrado durante QA de Fase 6
+(QA cruzado contra BD). Documentar en docstring del test "Reproduce bug
+encontrado en QA de Fase 6: ..." para trazabilidad.
+
+COVERAGE:
+- Objetivo: ≥80% en services
+- Ignorar: routers (cobertura indirecta vía tests de integración cuando
+  se hagan), schemas (son declarativos), modelos
+- Generar reporte con pytest --cov=app.services --cov-report=html
+
+DOCUMENTAR EN docs/comandos.md:
+- Cómo correr tests localmente
+- Cómo crear la BD de tests
+- Cómo interpretar el coverage report
 ```
 
 ### Bloque 7.2 — Manejo de errores y validaciones finales
@@ -962,30 +996,207 @@ Aplicar docs/design-system.md: el drawer usa bg-bg-surface con sombra, overlay c
 ### Bloque 7.5 — Documentación de deployment
 
 ```
-Crear docs/deployment.md con guía completa de instalación en una PC nueva.
+Crear docs/deployment.md con dos secciones:
 
-Incluir:
-- Requisitos previos (Docker, Node, Python — si aplica fuera del contenedor)
-- Clonado del repo y configuración de .env
-- Instalación de dependencias
-- Migración y seed inicial
-- Configuración de rclone para backups (paso a paso con screenshots si es posible)
-- Configuración de cron
-- Configuración de IP fija en el router
-- Importación del certificado mkcert en dispositivos del cliente
-- Checklist de smoke test post-instalación
+SECCIÓN A — Deployment con Docker (para entornos con virtualización):
+- Requisitos previos (Docker Desktop instalado, Node, Python para venv)
+- Clonado del repo
+- Configurar .env (DATABASE_URL, JWT_SECRET, STORAGE_PATH, etc.)
+- docker compose up -d
+- Migración + seed
+- Build del frontend + servirlo (sugerir `serve -s dist -l 4173`)
+- Configuración de rclone para backups
+- Cron / Task Scheduler para backups diarios
+- Configuración de IP fija en el router del cliente
+- Importación de certificado mkcert en dispositivos del cliente
+- Smoke test detallado (ver abajo)
+
+SMOKE TEST POST-INSTALACIÓN (lista accionable, 15 verificaciones):
+1. Login con admin/password — entra al dashboard
+2. Crear un producto de prueba — guarda y aparece en lista
+3. Cargar inventario inicial de ese producto — stock se refleja
+4. Crear un proveedor — guarda
+5. Crear una compra del producto — guardar como borrador
+6. Confirmar la compra — stock aumenta, CPP correcto
+7. Crear un cliente — guarda
+8. Abrir POS, vender 1 unidad — confirma, stock baja
+9. Ver dashboard — métricas reflejan la venta
+10. Abrir reportes — top productos muestra el producto
+11. Ejecutar backup manual — archivo se sube a Drive
+12. Reiniciar la PC — todos los servicios arrancan automáticamente
+13. Acceder desde celular en la misma WiFi — login funciona en https
+14. Hacer F5 en una ruta protegida — no redirige a inicio
+15. Cancelar la venta de prueba — stock vuelve, dashboard se actualiza
+
+PLAN DE ROLLBACK:
+- Cómo restaurar desde backup en caso de problemas
+- Comandos exactos de pg_restore
+- Qué hacer si una migración falla a mitad
+
+PROCEDIMIENTO DE ACTUALIZACIONES:
+- git pull
+- pip install -r requirements.txt (si cambió)
+- npm install (si cambió) + rebuild del frontend
+- alembic upgrade head
+- Reiniciar servicios
+- Smoke test reducido (5-7 puntos)
 ```
+
+### Bloque 7.5b - Setup sin Docker para Windows
+
+---
+
+Crear docs/deployment.md SECCIÓN B — Deployment nativo en Windows (sin Docker).
+
+CONTEXTO: para clientes sin virtualización habilitada o con PCs de bajos
+recursos donde Docker es overhead injustificado.
+
+REQUISITOS PREVIOS:
+
+- Windows 10/11 con permisos de admin
+- Python 3.12+ (instalador oficial, marcar "Add to PATH")
+- Node.js 20+ LTS (instalador oficial)
+- PostgreSQL 16 (instalador EDB) — durante instalación, anotar la password
+  del superuser postgres
+- Git para Windows
+
+INSTALACIÓN POSTGRESQL:
+
+- Instalar PostgreSQL 16 con valores default (puerto 5432, locale es_PY)
+- Crear usuario y BD con pgAdmin o psql:
+  CREATE USER dtcore_admin WITH PASSWORD '<password seguro>';
+  CREATE DATABASE dtcore_db OWNER dtcore_admin;
+- Verificar conexión: psql -U dtcore_admin -d dtcore_db -h localhost
+
+INSTALACIÓN BACKEND:
+
+- Clonar el repo en C:\dtcore (o ruta elegida)
+- cd backend
+- python -m venv .venv
+- .venv\Scripts\activate
+- pip install -r requirements.txt
+- Crear .env con DATABASE_URL=postgresql+asyncpg://dtcore_admin:...@localhost:5432/dtcore_db
+  y demás variables
+- alembic upgrade head
+- python -m app.seed.run
+- Probar: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+INSTALACIÓN FRONTEND:
+
+- cd frontend
+- npm install
+- Configurar .env del frontend con VITE_API_URL=https://<ip-lan-del-server>/api
+- npm run build
+- Probar: npx serve -s dist -l 4173 --ssl-cert ... (con cert mkcert)
+
+ARRANQUE AUTOMÁTICO:
+Configurar como servicios de Windows. Opción recomendada: NSSM (Non-Sucking
+Service Manager, gratis y simple). Crear servicios para:
+
+1. dtcore-backend:
+   - Path: C:\dtcore\backend\.venv\Scripts\uvicorn.exe
+   - Args: app.main:app --host 0.0.0.0 --port 8000
+   - Startup: Automatic
+   - Log on: Local System
+
+2. dtcore-frontend:
+   - Path: C:\Program Files\nodejs\npx.cmd
+   - Args: serve -s C:\dtcore\frontend\dist -l 4173 --ssl-cert ...
+   - Startup: Automatic
+
+PostgreSQL ya se registra como servicio automático al instalarse.
+
+CONFIGURACIÓN DE BACKUPS:
+
+- Crear C:\dtcore\scripts\backup.ps1 (script PowerShell):
+  - Llama a pg_dump.exe con flags apropiados
+  - Comprime el dump (.zip o .sql.gz si tenés gzip)
+  - Llama a rclone.exe con la ruta de Drive configurada
+  - Logea resultado en C:\dtcore\logs\backup.log
+- Configurar tarea programada (Task Scheduler) que corra el .ps1 diariamente
+  a las 2 AM
+- Política de retención: borrar dumps locales >30 días en el mismo script
+
+CONFIGURACIÓN DE rclone (paso a paso):
+
+- Descargar rclone.exe a C:\dtcore\tools\
+- rclone config (interactivo) — configurar remote Google Drive
+- Hacer un rclone copy de prueba
+
+LOGS:
+
+- Backend uvicorn → C:\dtcore\logs\backend.log (configurar uvicorn con
+  --log-config logging.json)
+- PostgreSQL → ruta default del instalador
+- Backups → C:\dtcore\logs\backup.log
+
+CONFIGURACIÓN DE FIREWALL DE WINDOWS:
+
+- Permitir puertos 8000 (backend) y 4173 (frontend) en perfil de red privada
+
+CONFIGURACIÓN DE IP FIJA EN ROUTER DEL CLIENTE:
+(igual que sección A)
+
+IMPORTACIÓN DE CERTIFICADO MKCERT EN DISPOSITIVOS:
+(igual que sección A)
+
+SMOKE TEST POST-INSTALACIÓN:
+(mismas 15 verificaciones que sección A)
+
+PLAN DE ROLLBACK:
+
+- pg_restore desde backup
+- Comandos específicos para Windows
+
+PROCEDIMIENTO DE ACTUALIZACIONES:
+
+- git pull
+- cd backend && .venv\Scripts\activate && pip install -r requirements.txt &&
+  alembic upgrade head
+- cd frontend && npm install && npm run build
+- Reiniciar servicios: nssm restart dtcore-backend && nssm restart dtcore-frontend
+- Smoke test reducido
+
+---
 
 ### Bloque 7.6 — Datos iniciales del cliente
 
 ```
-Coordinar con el cliente carga inicial:
-- Lista de productos con SKU, nombre, categoría, unidades, precios
-- Lista de proveedores habituales
-- Stock actual al momento de inicio
-- Configuración inicial de settings (business_name, business_document, etc.)
+Coordinar con el cliente carga inicial.
 
-Crear script de importación CSV en scripts/import_initial_data.py para productos en bulk si el cliente provee Excel/CSV.
+CREAR EN scripts/:
+- products_template.csv: SKU, nombre, descripción, categoría, unidad_base,
+  tax_rate, tax_included_in_price, low_stock_threshold (con header en español
+  y 3-5 filas de ejemplo)
+- contacts_template.csv: tipo (cliente/proveedor/ambos), documento_tipo,
+  documento_numero, razon_social, nombre_fantasia, telefono, email, direccion
+- initial_inventory_template.csv: SKU, cantidad, costo_unitario_pyg
+
+CREAR scripts/import_initial_data.py:
+- Comando: python -m app.scripts.import_initial_data --file <ruta>.csv --type <products|contacts|inventory>
+- Validación PRIMERO, importación SEGUNDO:
+  - Para productos: SKUs duplicados, categorías existentes, unidades del
+    catálogo, tax_rate válido (0/5/10)
+  - Para contactos: tipos válidos, formatos de documento, emails parseables
+  - Para inventario: SKUs existentes, no debe tener movements previos,
+    cantidades > 0
+- Si hay errores: NO importa NADA, devuelve reporte con línea + error
+- Si valida: importa todo en transacción
+- Modo dry-run con --dry-run para validar sin escribir
+
+ORDEN DE CARGA RECOMENDADO (documentar en deployment.md):
+1. Verificar units_catalog (seed automático)
+2. Crear/verificar categorías (manual o con import)
+3. Importar productos
+4. Importar contactos
+5. Importar inventario inicial
+
+PROCESO CON EL CLIENTE:
+- Enviarle los 3 templates por email/whatsapp
+- Pedirle que llene en Excel/Google Sheets, exporte a CSV UTF-8
+- Validar con --dry-run antes de importar
+- Importar
+- Verificar con smoke test
 ```
 
 ### Bloque 7.7 — Capacitación

@@ -1,5 +1,14 @@
 import type { UnitType } from '../features/admin/api/unit_catalog'
 
+export function formatCurrency(value: string | number): string {
+  const n = typeof value === 'string' ? parseFloat(value) : value
+  if (isNaN(n)) return '—'
+  return new Intl.NumberFormat('es-PY', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(n)
+}
+
 export function formatQuantity(value: string | number, unitType: UnitType): string {
   const n = typeof value === 'string' ? parseFloat(value) : value
   if (isNaN(n)) return '—'

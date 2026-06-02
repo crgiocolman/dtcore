@@ -305,7 +305,8 @@ Fases organizadas verticalmente por módulo end-to-end (backend + frontend junto
 **Bloques:**
 
 - **6.1 — Backend ajustes**
-  - Modelos `stock_adjustments` y `stock_adjustment_items`
+  - Modelos `stock_adjustments` y `stock_adjustment_
+items`
   - Service con flujo draft → confirmed → cancelled
   - Confirmación genera movements + actualiza stock
   - Endpoints CRUD + confirm + cancel
@@ -336,7 +337,7 @@ Fases organizadas verticalmente por módulo end-to-end (backend + frontend junto
 - **6.5 — UI página de reportes**
   - Página `/reportes` con selector de tipo de reporte + filtros
   - Reportes implementados: ventas por período, top productos, utilidad por producto, kardex de producto, valor de inventario
-  - Exportación a CSV (decidir si v1 o se difiere)
+  - Exportación a CSV
 
 **Entregable:** sistema completo funcionalmente. El cliente tiene visibilidad sobre el negocio: qué se vende, cuánto se gana, qué falta reponer.
 
@@ -349,16 +350,27 @@ Fases organizadas verticalmente por módulo end-to-end (backend + frontend junto
 **Bloques:**
 
 - **7.1 — Tests del backend**
-  - Tests unitarios de services críticos: `stock_service` (lock, CPP, movements), `purchase_service` (confirm/cancel), `sale_service` (confirm/cancel, stock negativo, pagos mixtos)
-  - Coverage objetivo: ≥80% en services, ignorar routers
-  - Fixtures con BD de prueba y rollback por test
+  - Configuración de pytest con BD de tests separada (`DATABASE_URL_TEST`), fixture session-scoped que la crea/destruye, fixture function-scoped con rollback por test
+  - Tests unitarios de services críticos:
+    - `stock_service`: CPP, lock pesimista, stock negativo según setting, casos edge, recalculate
+    - `purchase_service`: confirm/cancel, compra en USD con conversión, no se puede confirmar dos veces
+    - `sale_service`: confirm/cancel, pagos mixtos, snapshot de costo, validación de stock
+    - `adjustment_service`: confirm/cancel, manejo de cancel cuando original era OUT sin costo
+    - `price_service`: precio vigente con múltiples cambios, rechazo de fechas anteriores
+    - `report_service`: cada función con datos seed multimoneda, cancelaciones, casos vacíos
+    - `settings_service`: parseo de cada value_type, cache invalidation
+  - Regresiones de QA: al menos un test por cada bug encontrado en QA cruzado de Fase 6, con docstring que referencie el bug
+  - Coverage objetivo: ≥80% en services (routers y schemas ignorados)
+  - Documentar setup y comandos en `docs/comandos.md`
 
 - **7.2 — Manejo de errores y validaciones finales**
-  - Revisar todos los endpoints: códigos HTTP correctos, mensajes de error útiles, validaciones Pydantic completas
-  - Frontend: manejo de errores de red, mensajes claros al usuario
-  - Logs estructurados en backend (level INFO en producción)
+  - Auditoría sistemática: cada endpoint debe devolver código HTTP correcto y body estructurado (`{code, message, ...detalle}`), no solo `{detail: "Error"}`
+  - Excepciones custom en `app/exceptions.py` con mapping consistente a HTTP
+  - Frontend: helper `parseApiError` centraliza el manejo, con tests propios
+  - Toast de error consistente, mensajes en español
+  - Logs estructurados (level INFO en producción) en archivo configurable
 
-  - **7.3 — Sidebar colapsable**
+- **7.3 — Sidebar colapsable**
   - Tres estados: expandido (~200px, default en escritorio), colapsado (~60px solo iconos), oculto
   - Botón en header para ciclar entre estados
   - Persistencia en `localStorage` de la preferencia del usuario
@@ -375,26 +387,51 @@ Fases organizadas verticalmente por módulo end-to-end (backend + frontend junto
   - **POS, formularios de compra/venta, ajustes y catálogo NO se rediseñan para móvil en v1** — si se acceden desde celular, se ven en zoom de escritorio. Operación móvil real es v2.
   - Documentar la limitación en el README del cliente
 
-- **7.5 — Documentación de deployment**
-  - Documento `docs/deployment.md` con pasos para desplegar DTCore en una PC nueva
-  - Script de instalación inicial (asume Ubuntu/Debian o documenta Windows con WSL)
-  - Configuración de `rclone` paso a paso
-  - Configuración de cron para backups y verificación
+- **7.5 — Documentación de deployment (Docker)**
+  - Documento `docs/deployment.md` sección A: instalación con Docker Compose
+  - Requisitos previos (Docker Desktop, Node, Python para venv)
+  - Configuración de `.env`, build del frontend servido con `serve`
+  - Configuración de `rclone` para backups paso a paso
+  - Cron / Task Scheduler para backups diarios
+  - Configuración de IP fija en router del cliente + importación de certificado mkcert
+  - **Smoke test post-instalación**: lista de 15 verificaciones accionables (login, crear producto, compra, venta, dashboard, backup manual, reinicio de PC, acceso desde celular en LAN, F5 preserva ruta, cancelar venta)
+  - Plan de rollback con `pg_restore`
+  - Procedimiento de actualizaciones (`git pull` + migraciones + reinicio + smoke test reducido)
+
+- **7.5b — Deployment nativo en Windows (sin Docker)**
+  - Documento `docs/deployment.md` sección B: instalación nativa para clientes sin virtualización o con PCs de bajos recursos
+  - Instalación de Python 3.12+, Node 20+, PostgreSQL 16 nativo, Git
+  - Setup de PostgreSQL nativo (usuario, BD, password)
+  - Backend con venv + uvicorn; frontend con `npm run build` + `serve`
+  - Arranque automático con NSSM como servicios de Windows: `dtcore-backend`, `dtcore-frontend` (PostgreSQL ya viene como servicio)
+  - Backups con `pg_dump.exe` + `rclone.exe` ejecutados desde script PowerShell programado en Task Scheduler
+  - Configuración de logs en `C:\dtcore\logs\`
+  - Configuración de firewall de Windows (puertos 8000 backend, 4173 frontend)
+  - Smoke test idéntico al de sección A
+  - Plan de rollback y procedimiento de actualizaciones específicos para Windows
+  - **Dry-run obligatorio:** antes del deployment real en cliente, instalar de cero en máquina del desarrollador siguiendo el manual, reiniciar PC, ejecutar smoke test, simular corte de luz
 
 - **7.6 — Datos iniciales del cliente**
-  - Cargar productos reales de Rincón de Embalajes (con cliente o pidiéndoselos)
-  - Cargar proveedores habituales
-  - Inventario inicial real
+  - Crear templates CSV: `products_template.csv`, `contacts_template.csv`, `initial_inventory_template.csv` con headers en español y filas de ejemplo
+  - Crear `app/scripts/import_initial_data.py` con flag `--dry-run` que valida primero (SKUs únicos, categorías existentes, unidades del catálogo, tipos válidos) y reporta errores sin importar
+  - Si validación OK: importa todo en transacción atómica
+  - Orden de carga documentado: catálogo de unidades (seed) → categorías → productos → contactos → inventario inicial
+  - Proceso con cliente: enviar templates → cliente llena en Excel/Sheets → exporta CSV UTF-8 → `--dry-run` → importar → smoke test
 
 - **7.7 — Capacitación**
-  - Sesión con el cliente para uso del POS
-  - Documento corto de "atajos y trucos" impreso para tener a mano
-  - Configuración de PWA instalada en sus dispositivos
-  - Importación del certificado mkcert en celular y notebook del cliente
+  - Agenda de 2-3 horas dividida en bloques: POS (45 min), compras (30 min), productos (30 min), reportes (20 min), backup y emergencias (15 min)
+  - Tareas prácticas durante la sesión: el cliente hace una compra real, una venta real con su POS, busca un producto, ve un reporte
+  - Documento corto "atajos y trucos" impreso para tener a mano
+  - Documento "qué hacer si..." de 1 página: WiFi caído, PC apagada, producto que no aparece, error en venta — las 10 preguntas más probables con respuesta corta
+  - Instalación de PWA en dispositivos del cliente + importación del certificado mkcert en cada uno
 
 - **7.8 — Período de acompañamiento**
   - 3 meses de soporte según contrato
-  - Backlog de mejoras detectadas en uso real → entran a v2
+  - Canal de comunicación único definido (sugerido: WhatsApp para este perfil de cliente)
+  - Changelog interno con cada issue reportado
+  - Cada bug crítico → fix inmediato con su test de regresión
+  - Cada feature request → evaluar si es v1 (incluido) o v2 (cotizable aparte)
+  - Revisión semanal de logs y backups durante el primer mes
 
 **Entregable:** sistema en producción en el local del cliente. Cliente capacitado. Backups verificados. Listos para iterar.
 

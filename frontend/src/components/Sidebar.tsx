@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, Coins, FolderTree, Home, Package, PackagePlus, Receipt, Ruler, Settings, ShoppingCart, Truck, Users } from 'lucide-react'
+import { BarChart3, Boxes, Coins, FolderTree, Home, Package, PackagePlus, Receipt, Ruler, Settings, ShoppingCart, SlidersHorizontal, Truck, Users } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useAuthStore } from '../features/auth/store'
 
@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { label: 'Compras', to: '/compras', end: false, Icon: Truck },
   { label: 'Productos', to: '/productos', end: false, Icon: Package },
   { label: 'Contactos', to: '/contactos', end: false, Icon: Users },
+  { label: 'Ajustes', to: '/ajustes', end: false, Icon: SlidersHorizontal },
   { label: 'Inventario', to: '/inventario', end: false, Icon: Boxes },
   { label: 'Reportes', to: '/reportes', end: false, Icon: BarChart3 },
   { label: 'Configuración', to: '/admin/settings', end: false, Icon: Settings },

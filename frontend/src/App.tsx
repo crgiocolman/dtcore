@@ -14,6 +14,10 @@ import { ContactForm } from './features/contacts/pages/ContactForm'
 import { ContactsList } from './features/contacts/pages/ContactsList'
 import { ProductForm } from './features/products/pages/ProductForm'
 import { ProductsList } from './features/products/pages/ProductsList'
+import { AdjustmentForm } from './features/adjustments/pages/AdjustmentForm'
+import { AdjustmentsList } from './features/adjustments/pages/AdjustmentsList'
+import { Home } from './features/dashboard/pages/Home'
+import { Reports } from './features/reports/pages/Reports'
 import { PurchaseForm } from './features/purchases/pages/PurchaseForm'
 import { PurchasesList } from './features/purchases/pages/PurchasesList'
 import { POS } from './features/pos/pages/POS'
@@ -42,7 +46,7 @@ export default function App() {
             </RequireAuth>
           }
         >
-          <Route index element={<Placeholder title="Inicio" />} />
+          <Route index element={<Home />} />
           <Route path="ventas" element={<SalesList />} />
           <Route path="compras" element={<PurchasesList />} />
           <Route path="compras/nueva" element={<PurchaseForm />} />
@@ -53,8 +57,11 @@ export default function App() {
           <Route path="contactos" element={<ContactsList />} />
           <Route path="contactos/nuevo" element={<ContactForm />} />
           <Route path="contactos/:id" element={<ContactForm />} />
+          <Route path="ajustes" element={<AdjustmentsList />} />
+          <Route path="ajustes/nuevo" element={<AdjustmentForm />} />
+          <Route path="ajustes/:id" element={<AdjustmentForm />} />
           <Route path="inventario" element={<Placeholder title="Inventario" />} />
-          <Route path="reportes" element={<Placeholder title="Reportes" />} />
+          <Route path="reportes" element={<Reports />} />
           <Route path="admin/settings" element={<Settings />} />
           <Route path="admin/currencies" element={<Currencies />} />
           <Route path="admin/categorias" element={<Categories />} />

@@ -2,13 +2,13 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-06-01 — Fase 5 cerrada (ventas + POS completo).
+**Última actualización:** 2026-06-02 — Fase 6 cerrada (ajustes de stock + reportes + dashboard).
 
 ---
 
 ## Fase actual
 
-**Fase 5 completa.** Próximo: **Fase 6 — Ajustes de stock + reportes básicos**, comenzando por **Bloque 6.1 — Backend ajustes** (`stock_adjustments`, `stock_adjustment_items`, draft→confirm→cancel).
+**Fase 6 completa.** Próximo: **Fase 7 — Pulido y entrega**, comenzando por **Bloque 7.1 — Tests del backend** (stock_service, purchase_service, sale_service; cobertura ≥80% en services).
 
 ---
 
@@ -20,8 +20,8 @@ Toda la documentación de diseño está cerrada. Los docs vivos son `HANDOFF.md`
 
 ## Estado del código
 
-- Backend completo hasta ventas: stock + CPP, compras draft→confirm→cancel, ventas draft→confirm→cancel con lock pesimista, validación de pagos, `sale_number` correlativo. `SaleItemOut` devuelve `product_name` y `unit_name` hidratados via JOIN.
-- Frontend: layout dark mode, auth, admin completo (settings, currencies, categorías, unidades, inventario inicial), contacts, productos, **compras** (`/compras`, `/compras/:id`), **POS** (`/pos`) full-screen con carrito, atajos F1–F9, pagos mixtos, mensaje de error de stock detallado. **Ventas** (`/ventas`) con tabla paginada, filtros, modal de detalle (items + pagos + totales) y cancelación con motivo.
+- Backend completo hasta reportes: stock + CPP, compras draft→confirm→cancel, ventas draft→confirm→cancel con lock pesimista, ajustes draft→confirm→cancel, `report_service.py` con 6 funciones (sales_by_period, top_products, profit_by_product, low_stock, stock_value, movements_by_product/kardex).
+- Frontend: layout dark mode, auth, admin completo, contacts, productos, compras, POS, ventas, ajustes, **dashboard** (`/`) con 4 métricas + BarChart + PieChart + stock bajo + valor inventario, **reportes** (`/reportes`) con 5 tabs (Ventas por período, Top productos, Utilidad, Kardex, Valor inventario), filtros de fecha con presets, exportar CSV (papaparse).
 - `src/lib/hooks/useKeyboardShortcuts.ts` — hook global de atajos reutilizable.
 - Migración `d056943fbd91` aplicada: `sale_number` nullable (asignado al confirmar, no al crear draft).
 - Migraciones aplicadas hasta head actual. Ver `alembic current`.
@@ -57,11 +57,21 @@ BACKUP_DRIVE_REMOTE_PATH=<configurar al desplegar>
 
 ## Próximo paso concreto
 
-**Bloque 6.1 — Backend ajustes de stock.** Modelos `stock_adjustments` y `stock_adjustment_items`, service con draft→confirm→cancel, confirmación genera `stock_movements` + actualiza `stock_current`, endpoints CRUD + confirm + cancel. Motivos de ajuste: enum o texto libre (decidir en diseño).
+**Bloque 7.1 — Tests del backend.** pytest con pytest-asyncio; fixtures con BD de tests separada y rollback por test; foco en `stock_service` (lock, CPP, movements), `purchase_service` (confirm/cancel), `sale_service` (confirm/cancel, stock negativo, pagos mixtos); cobertura objetivo ≥80% en services.
 
 ---
 
 ## Historial de fases
+
+### Fase 6 — Ajustes de stock + reportes (cerrada 2026-06-02)
+
+**6.1–6.2 — Ajustes:** `stock_adjustments` + `stock_adjustment_items` con draft→confirm→cancel. `AdjustmentReason` como enum (inventory_count, damage, loss, expired, correction, other). Confirmación genera movements + actualiza stock_current con lock pesimista. UI `/ajustes` con lista paginada y `/ajustes/:id` formulario + detalle + cancelación.
+
+**6.3 — Backend reportes:** `report_service.py` con `sales_by_period` (group_by day/week/month), `top_products` (by_quantity + by_amount), `profit_by_product` (CPP snapshot en `unit_cost_base_at_sale`), `low_stock_products`, `stock_value` (por categoría), `movements_by_product` (kardex con saldo acumulado). Endpoints en `/reports/*`.
+
+**6.4 — Dashboard (Home):** `/` con 4 métricas del mes (ventas, operaciones, ticket promedio, utilidad), BarChart de ventas por día, PieChart top 10 productos, lista de stock bajo con links, card de valor de inventario. `useDashboard` hook con `Promise.allSettled`.
+
+**6.5 — Página de reportes:** `/reportes` con 5 tabs, filtros de fecha con presets (Este mes / Mes pasado / Últimos 30 días / Este año), exportar CSV por tab (papaparse, UTF-8 BOM). Kardex: búsqueda de producto con debounce + dropdown, tabla de movements con saldo acumulado.
 
 ### Fase 5 — Ventas (POS) (cerrada 2026-06-01)
 
