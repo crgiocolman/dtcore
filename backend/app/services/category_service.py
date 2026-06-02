@@ -5,30 +5,42 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.exceptions import ConflictError, ResourceNotFoundError
 from app.models.products import Product, ProductCategory
 from app.schemas.categories import CategoryCreate, CategoryTreeNode, CategoryUpdate
 
 logger = logging.getLogger(__name__)
 
 
-class CategoryNotFoundError(Exception):
-    pass
+class CategoryNotFoundError(ResourceNotFoundError):
+    def __init__(self, category_id=None) -> None:
+        super().__init__(entity="Categoría", id=category_id)
 
 
-class CategoryParentNotFoundError(Exception):
-    pass
+class CategoryParentNotFoundError(ResourceNotFoundError):
+    def __init__(self, parent_id=None) -> None:
+        super().__init__(entity="Categoría padre", id=parent_id)
 
 
-class CategoryCycleError(Exception):
-    pass
+class CategoryCycleError(ConflictError):
+    def __init__(self) -> None:
+        super().__init__(code="category_cycle", message="La categoría padre generaría un ciclo")
 
 
-class CategoryHasProductsError(Exception):
-    pass
+class CategoryHasProductsError(ConflictError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="category_has_products",
+            message="La categoría tiene productos asociados y no puede eliminarse",
+        )
 
 
-class CategoryHasChildrenError(Exception):
-    pass
+class CategoryHasChildrenError(ConflictError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="category_has_children",
+            message="La categoría tiene subcategorías y no puede eliminarse",
+        )
 
 
 async def get_category(db: AsyncSession, category_id: UUID) -> ProductCategory | None:

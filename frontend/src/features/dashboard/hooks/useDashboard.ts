@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { toast } from '../../../components/Toast'
+import { parseApiError } from '../../../lib/parseApiError'
 import {
   fetchLowStock,
   fetchProfitByProduct,
@@ -50,6 +52,18 @@ export function useDashboard(): DashboardState {
       fetchLowStock(),
       fetchStockValue(),
     ]).then(([salesRes, topRes, profitRes, lowRes, valueRes]) => {
+      const failed = [salesRes, topRes, profitRes, lowRes, valueRes].filter(
+        (r) => r.status === 'rejected',
+      )
+      if (failed.length > 0) {
+        const first = (failed[0] as PromiseRejectedResult).reason
+        const parsed = parseApiError(first)
+        toast.warning(
+          parsed.isNetworkError
+            ? 'Sin conexión con el servidor'
+            : `No se pudieron cargar algunos datos del dashboard: ${parsed.message}`,
+        )
+      }
       setState({
         salesByPeriod: salesRes.status === 'fulfilled' ? (salesRes.value as SalesByPeriodOut) : null,
         topProducts: topRes.status === 'fulfilled' ? (topRes.value as TopProductsOut) : null,

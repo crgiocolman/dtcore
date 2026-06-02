@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Trash2, X } from 'lucide-react'
+import { parseApiError as _parseErr } from '../../../lib/parseApiError'
 import {
   createContact,
   deleteContact,
@@ -75,13 +76,7 @@ function Toggle({ checked, onChange }: ToggleProps) {
 // ---- Helpers ----
 
 function parseApiError(err: unknown): string {
-  if (!(err instanceof Error)) return 'Error desconocido'
-  try {
-    const parsed = JSON.parse(err.message)
-    return parsed?.detail ?? err.message
-  } catch {
-    return err.message
-  }
+  return _parseErr(err).message
 }
 
 // ---- Form state ----

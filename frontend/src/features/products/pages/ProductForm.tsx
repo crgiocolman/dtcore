@@ -20,20 +20,12 @@ import {
 import { createPrice, fetchPriceHistory, type PriceOut } from '../api/prices'
 import { fetchCurrencies, type CurrencyOut } from '../../admin/api/currencies'
 import { fetchUnitCatalog, type UnitCatalogOut } from '../../admin/api/unit_catalog'
+import { parseApiError as _parseErr } from '../../../lib/parseApiError'
 
 // ---- Helpers ----
 
 function parseApiError(err: unknown): string {
-  if (!(err instanceof Error)) return 'Error desconocido'
-  try {
-    const parsed = JSON.parse(err.message)
-    if (typeof parsed?.detail === 'object' && parsed.detail !== null) {
-      return parsed.detail.message ?? err.message
-    }
-    return parsed?.detail ?? err.message
-  } catch {
-    return err.message
-  }
+  return _parseErr(err).message
 }
 
 interface StructuredError {
@@ -43,19 +35,11 @@ interface StructuredError {
 }
 
 function parseApiErrorStructured(err: unknown): StructuredError {
-  if (!(err instanceof Error)) return { message: 'Error desconocido' }
-  try {
-    const parsed = JSON.parse(err.message)
-    if (typeof parsed?.detail === 'object' && parsed.detail !== null) {
-      return {
-        code: parsed.detail.code,
-        message: parsed.detail.message ?? err.message,
-        unit_id: parsed.detail.unit_id,
-      }
-    }
-    return { message: parsed?.detail ?? err.message }
-  } catch {
-    return { message: err.message }
+  const parsed = _parseErr(err)
+  return {
+    code: parsed.code,
+    message: parsed.message,
+    unit_id: parsed.details.unit_id as string | undefined,
   }
 }
 

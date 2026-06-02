@@ -3,7 +3,7 @@ import math
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,20 +25,6 @@ from app.schemas.sales import (
     SaleUpdate,
 )
 from app.services import sale_service
-from app.services.sale_service import (
-    CurrencyNotValidError,
-    CustomerNotValidError,
-    CustomerRequiredError,
-    InvalidSaleStateError,
-    PaymentSumMismatchError,
-    ProductNotFoundError,
-    ProductUnitNotActiveError,
-    ProductUnitNotFoundError,
-    SaleHasNoItemsError,
-    SaleNotFoundError,
-    WarehouseNotFoundError,
-)
-from app.services.stock_service import InsufficientStockError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -150,27 +136,9 @@ async def create_sale(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        sale = await sale_service.create_sale(db, data=body, user_id=current_user.id)
-    except CustomerNotValidError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "customer_not_valid", "customer_id": str(e.customer_id)})
-    except CurrencyNotValidError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "currency_not_valid", "currency_code": e.currency_code})
-    except WarehouseNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "warehouse_not_found", "warehouse_id": str(e.warehouse_id)})
-
-    try:
-        await db.commit()
-        await db.refresh(sale)
-    except Exception:
-        logger.exception("Error al crear venta %s", body.id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al crear venta")
-
+    sale = await sale_service.create_sale(db, data=body, user_id=current_user.id)
+    await db.commit()
+    await db.refresh(sale)
     return _sale_to_out(sale, [], [], None)
 
 
@@ -180,10 +148,7 @@ async def get_sale(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    try:
-        sale, items, payments, customer_name, names = await sale_service.get_sale(db, sale_id)
-    except SaleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta no encontrada")
+    sale, items, payments, customer_name, names = await sale_service.get_sale(db, sale_id)
     return _sale_to_out(sale, items, payments, customer_name, names)
 
 
@@ -194,34 +159,11 @@ async def update_sale(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        sale = await sale_service.update_sale(
-            db, sale_id=sale_id, data=body, user_id=current_user.id
-        )
-    except SaleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta no encontrada")
-    except InvalidSaleStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-    except CustomerNotValidError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "customer_not_valid", "customer_id": str(e.customer_id)})
-    except CurrencyNotValidError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "currency_not_valid", "currency_code": e.currency_code})
-    except WarehouseNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "warehouse_not_found", "warehouse_id": str(e.warehouse_id)})
-
-    try:
-        await db.commit()
-        await db.refresh(sale)
-    except Exception:
-        logger.exception("Error al actualizar venta %s", sale_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al actualizar venta")
-
+    sale = await sale_service.update_sale(
+        db, sale_id=sale_id, data=body, user_id=current_user.id
+    )
+    await db.commit()
+    await db.refresh(sale)
     _, items, payments, customer_name, names = await sale_service.get_sale(db, sale_id)
     return _sale_to_out(sale, items, payments, customer_name, names)
 
@@ -232,21 +174,8 @@ async def delete_sale(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        await sale_service.delete_sale(db, sale_id=sale_id, user_id=current_user.id)
-    except SaleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta no encontrada")
-    except InvalidSaleStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al eliminar venta %s", sale_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al eliminar venta")
+    await sale_service.delete_sale(db, sale_id=sale_id, user_id=current_user.id)
+    await db.commit()
 
 
 @router.post("/{sale_id}/items", response_model=SaleItemOut, status_code=status.HTTP_201_CREATED)
@@ -256,37 +185,11 @@ async def add_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        item = await sale_service.add_item(
-            db, sale_id=sale_id, data=body, user_id=current_user.id
-        )
-    except SaleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta no encontrada")
-    except InvalidSaleStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-    except ProductNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "product_not_found", "product_id": str(e.product_id)})
-    except ProductUnitNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "product_unit_not_found", "unit_id": str(e.unit_id)})
-    except ProductUnitNotActiveError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "product_unit_not_active", "unit_id": str(e.unit_id)})
-
-    try:
-        await db.commit()
-        await db.refresh(item)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Conflicto al agregar item")
-    except Exception:
-        logger.exception("Error al agregar item a venta %s", sale_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al agregar item")
-
+    item = await sale_service.add_item(
+        db, sale_id=sale_id, data=body, user_id=current_user.id
+    )
+    await db.commit()
+    await db.refresh(item)
     return _item_to_out(item)
 
 
@@ -298,25 +201,11 @@ async def update_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        item = await sale_service.update_item(
-            db, sale_id=sale_id, item_id=item_id, data=body, user_id=current_user.id
-        )
-    except SaleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta o item no encontrado")
-    except InvalidSaleStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-
-    try:
-        await db.commit()
-        await db.refresh(item)
-    except Exception:
-        logger.exception("Error al actualizar item %s", item_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al actualizar item")
-
+    item = await sale_service.update_item(
+        db, sale_id=sale_id, item_id=item_id, data=body, user_id=current_user.id
+    )
+    await db.commit()
+    await db.refresh(item)
     return _item_to_out(item)
 
 
@@ -327,23 +216,10 @@ async def remove_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        await sale_service.remove_item(
-            db, sale_id=sale_id, item_id=item_id, user_id=current_user.id
-        )
-    except SaleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta o item no encontrado")
-    except InvalidSaleStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al eliminar item %s", item_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al eliminar item")
+    await sale_service.remove_item(
+        db, sale_id=sale_id, item_id=item_id, user_id=current_user.id
+    )
+    await db.commit()
 
 
 @router.post("/{sale_id}/payments", response_model=SalePaymentOut, status_code=status.HTTP_201_CREATED)
@@ -353,25 +229,11 @@ async def add_payment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        payment = await sale_service.add_payment(
-            db, sale_id=sale_id, data=body, user_id=current_user.id
-        )
-    except SaleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta no encontrada")
-    except InvalidSaleStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-
-    try:
-        await db.commit()
-        await db.refresh(payment)
-    except Exception:
-        logger.exception("Error al agregar pago a venta %s", sale_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al agregar pago")
-
+    payment = await sale_service.add_payment(
+        db, sale_id=sale_id, data=body, user_id=current_user.id
+    )
+    await db.commit()
+    await db.refresh(payment)
     return _payment_to_out(payment)
 
 
@@ -382,23 +244,10 @@ async def remove_payment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        await sale_service.remove_payment(
-            db, sale_id=sale_id, payment_id=payment_id, user_id=current_user.id
-        )
-    except SaleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta o pago no encontrado")
-    except InvalidSaleStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al eliminar pago %s", payment_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al eliminar pago")
+    await sale_service.remove_payment(
+        db, sale_id=sale_id, payment_id=payment_id, user_id=current_user.id
+    )
+    await db.commit()
 
 
 @router.post("/{sale_id}/confirm", response_model=SaleOut)
@@ -407,58 +256,20 @@ async def confirm_sale(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        sale = await sale_service.confirm_sale(
-            db, sale_id=sale_id, user_id=current_user.id
-        )
-    except SaleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta no encontrada")
-    except InvalidSaleStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-    except SaleHasNoItemsError:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "sale_has_no_items"})
-    except CustomerRequiredError:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "customer_required"})
-    except PaymentSumMismatchError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "payment_sum_mismatch",
-                                    "expected": str(e.expected), "actual": str(e.actual)})
-    except InsufficientStockError as e:
-        detail: dict = {
-            "code": "insufficient_stock",
-            "product_id": str(e.product_id),
-            "available": str(e.available),
-            "requested": str(e.requested),
-        }
-        if e.product_name:
-            detail["product_name"] = e.product_name
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
-
+    sale = await sale_service.confirm_sale(
+        db, sale_id=sale_id, user_id=current_user.id
+    )
     try:
         await db.commit()
         await db.refresh(sale)
     except IntegrityError:
         # Race condition en sale_number — reintentar una vez
         await db.rollback()
-        try:
-            sale = await sale_service.confirm_sale(
-                db, sale_id=sale_id, user_id=current_user.id
-            )
-            await db.commit()
-            await db.refresh(sale)
-        except Exception:
-            logger.exception("Error al confirmar venta %s (reintento)", sale_id)
-            await db.rollback()
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                                detail="Error al confirmar venta")
-    except Exception:
-        logger.exception("Error al confirmar venta %s", sale_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al confirmar venta")
+        sale = await sale_service.confirm_sale(
+            db, sale_id=sale_id, user_id=current_user.id
+        )
+        await db.commit()
+        await db.refresh(sale)
 
     _, items, payments, customer_name, names = await sale_service.get_sale(db, sale_id)
     return _sale_to_out(sale, items, payments, customer_name, names)
@@ -471,25 +282,11 @@ async def cancel_sale(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        sale = await sale_service.cancel_sale(
-            db, sale_id=sale_id, user_id=current_user.id, reason=body.reason
-        )
-    except SaleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta no encontrada")
-    except InvalidSaleStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-
-    try:
-        await db.commit()
-        await db.refresh(sale)
-    except Exception:
-        logger.exception("Error al cancelar venta %s", sale_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al cancelar venta")
-
+    sale = await sale_service.cancel_sale(
+        db, sale_id=sale_id, user_id=current_user.id, reason=body.reason
+    )
+    await db.commit()
+    await db.refresh(sale)
     _, items, payments, customer_name, names = await sale_service.get_sale(db, sale_id)
     return _sale_to_out(sale, items, payments, customer_name, names)
 
@@ -500,8 +297,5 @@ async def get_sale_audit(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    try:
-        entries = await sale_service.get_sale_audit(db, sale_id)
-    except SaleNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta no encontrada")
+    entries = await sale_service.get_sale_audit(db, sale_id)
     return [SaleAuditEntry(**e) for e in entries]

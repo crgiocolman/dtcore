@@ -1,4 +1,3 @@
-import logging
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -10,8 +9,6 @@ from app.database import get_db
 from app.enums import UserRole
 from app.models.users import User
 from app.services import auth_service
-
-logger = logging.getLogger(__name__)
 
 _bearer_scheme = HTTPBearer()
 
@@ -34,7 +31,6 @@ async def get_current_user(
         if user_id is None:
             raise credentials_exception
     except JWTError:
-        logger.warning("Token JWT inválido recibido")
         raise credentials_exception
 
     user = await auth_service.get_user_by_id(db, UUID(user_id))

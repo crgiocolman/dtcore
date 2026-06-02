@@ -44,10 +44,7 @@ async def get_setting(
 ):
     row = await settings_service.get_setting_row(db, key)
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Setting '{key}' no encontrado",
-        )
+        raise settings_service.SettingNotFoundError(key)
     return _to_out(row)
 
 
@@ -60,25 +57,10 @@ async def update_setting(
 ):
     try:
         setting = await settings_service.set_setting(db, key, body.value, current_user.id)
-    except KeyError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Setting '{key}' no encontrado",
-        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
+            detail={"code": "invalid_value", "message": str(exc)},
         )
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al guardar setting %s", key)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al guardar el setting",
-        )
-
+    await db.commit()
     return _to_out(setting)

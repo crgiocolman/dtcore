@@ -2,13 +2,13 @@ import logging
 import math
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
+from app.exceptions import ResourceNotFoundError
 from app.models.products import Product
 from app.models.unit_catalog import UnitCatalog
 from app.models.users import User
@@ -21,14 +21,6 @@ from app.schemas.products import (
 )
 from app.schemas.unit_catalog import UnitCatalogOut
 from app.services import product_service
-from app.services.product_service import (
-    BarcodeConflictOnRestoreError,
-    ProductBarcodeConflictError,
-    ProductNotFoundError,
-    ProductSKUConflictError,
-    SKUConflictOnRestoreError,
-    restore_product,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +52,6 @@ def _to_out(p: Product, catalog: UnitCatalog | None) -> ProductOut:
 async def _fetch_catalog_map(
     db: AsyncSession, products: list[Product]
 ) -> dict[UUID, UnitCatalog]:
-    """Batch fetch UnitCatalog entries for a list of products."""
     ids = list({p.base_unit_id for p in products})
     if not ids:
         return {}
@@ -133,7 +124,7 @@ async def get_product(
 ):
     product = await product_service.get_product(db, product_id)
     if product is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
+        raise ResourceNotFoundError(entity="Producto", id=product_id)
     catalog = await db.get(UnitCatalog, product.base_unit_id)
     return _to_out(product, catalog)
 
@@ -144,35 +135,9 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        product = await product_service.create_product(db, data=body, user_id=current_user.id)
-    except ProductSKUConflictError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe un producto con SKU {e.sku}",
-        )
-    except ProductBarcodeConflictError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe un producto con barcode {e.barcode}",
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(product)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Conflicto de unicidad al crear producto",
-        )
-    except Exception:
-        logger.exception("Error al crear producto")
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al crear producto",
-        )
+    product = await product_service.create_product(db, data=body, user_id=current_user.id)
+    await db.commit()
+    await db.refresh(product)
     catalog = await db.get(UnitCatalog, product.base_unit_id)
     return _to_out(product, catalog)
 
@@ -184,39 +149,11 @@ async def update_product(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        product = await product_service.update_product(
-            db, product_id, data=body, user_id=current_user.id
-        )
-    except ProductNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
-    except ProductSKUConflictError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe un producto con SKU {e.sku}",
-        )
-    except ProductBarcodeConflictError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe un producto con barcode {e.barcode}",
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(product)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Conflicto de unicidad al actualizar producto",
-        )
-    except Exception:
-        logger.exception("Error al actualizar producto %s", product_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al actualizar producto",
-        )
+    product = await product_service.update_product(
+        db, product_id, data=body, user_id=current_user.id
+    )
+    await db.commit()
+    await db.refresh(product)
     catalog = await db.get(UnitCatalog, product.base_unit_id)
     return _to_out(product, catalog)
 
@@ -227,20 +164,8 @@ async def delete_product(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        await product_service.delete_product(db, product_id, user_id=current_user.id)
-    except ProductNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al eliminar producto %s", product_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al eliminar producto",
-        )
+    await product_service.delete_product(db, product_id, user_id=current_user.id)
+    await db.commit()
 
 
 @router.post("/{product_id}/restore", response_model=ProductOut)
@@ -249,40 +174,8 @@ async def restore_product_endpoint(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        product = await restore_product(db, product_id, user_id=current_user.id)
-    except ProductNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado o no está eliminado")
-    except SKUConflictOnRestoreError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "sku_conflict_on_restore",
-                "message": f"El SKU '{e.sku}' ya está en uso por otro producto activo",
-                "conflicting_value": e.sku,
-                "conflicting_product_id": str(e.conflicting_product_id),
-            },
-        )
-    except BarcodeConflictOnRestoreError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "barcode_conflict_on_restore",
-                "message": f"El código de barras '{e.barcode}' ya está en uso por otro producto activo",
-                "conflicting_value": e.barcode,
-                "conflicting_product_id": str(e.conflicting_product_id),
-            },
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(product)
-    except Exception:
-        logger.exception("Error al restaurar producto %s", product_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al restaurar producto",
-        )
+    product = await product_service.restore_product(db, product_id, user_id=current_user.id)
+    await db.commit()
+    await db.refresh(product)
     catalog = await db.get(UnitCatalog, product.base_unit_id)
     return _to_out(product, catalog)

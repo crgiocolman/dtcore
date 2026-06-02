@@ -3,9 +3,8 @@ import math
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -20,10 +19,6 @@ from app.schemas.stock import (
     StockSummaryOut,
 )
 from app.services import stock_service
-from app.services.stock_service import (
-    InitialInventoryAlreadyAppliedError,
-    InsufficientStockError,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +66,7 @@ async def list_movements(
     _: User = Depends(get_current_user),
 ):
     from app.enums import StockReferenceType
-
     ref_type = StockReferenceType(reference_type) if reference_type else None
-
     items, total = await stock_service.get_movements(
         db,
         product_id=product_id,
@@ -100,46 +93,22 @@ async def apply_initial_inventory(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        movements = await stock_service.apply_initial_inventory(
-            db,
-            items=body.items,
-            warehouse_id=body.warehouse_id,
-            user_id=current_user.id,
-        )
-    except InitialInventoryAlreadyAppliedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "initial_inventory_already_applied",
-                "product_id": str(e.product_id),
-            },
-        )
+    movements = await stock_service.apply_initial_inventory(
+        db,
+        items=body.items,
+        warehouse_id=body.warehouse_id,
+        user_id=current_user.id,
+    )
 
-    # Hidratar product_name para la respuesta
     product_ids = list({m.product_id for m in movements})
     products = (
         await db.execute(select(Product).where(Product.id.in_(product_ids)))
     ).scalars().all()
     name_map = {p.id: p.name for p in products}
 
-    try:
-        await db.commit()
-        for m in movements:
-            await db.refresh(m)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Conflicto al aplicar inventario inicial",
-        )
-    except Exception:
-        logger.exception("Error al aplicar inventario inicial")
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al aplicar inventario inicial",
-        )
+    await db.commit()
+    for m in movements:
+        await db.refresh(m)
 
     return [
         StockMovementOut(

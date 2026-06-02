@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import AuditAction, ContactType, PurchaseStatus, StockDirection, StockMovementType, StockReferenceType
+from app.exceptions import BusinessRuleError, InvalidStateError, ResourceNotFoundError
 from app.models.audit import AuditLog
 from app.models.contacts import Contact
 from app.models.users import User
@@ -31,57 +32,76 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class PurchaseNotFoundError(Exception):
-    pass
+class PurchaseNotFoundError(ResourceNotFoundError):
+    def __init__(self, purchase_id=None) -> None:
+        super().__init__(entity="Compra", id=purchase_id)
 
 
-class InvalidPurchaseStateError(Exception):
+class InvalidPurchaseStateError(InvalidStateError):
     def __init__(self, purchase_id: UUID, current_status: PurchaseStatus) -> None:
         self.purchase_id = purchase_id
         self.current_status = current_status
         super().__init__(
-            f"Compra {purchase_id} está en estado '{current_status.value}', operación no permitida"
+            entity="Compra",
+            current_state=current_status.value,
+            attempted_action="operación solicitada",
         )
 
 
-class PurchaseHasNoItemsError(Exception):
-    pass
+class PurchaseHasNoItemsError(BusinessRuleError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="purchase_has_no_items",
+            message="La compra debe tener al menos un ítem para confirmarse",
+        )
 
 
-class SupplierNotValidError(Exception):
+class SupplierNotValidError(BusinessRuleError):
     def __init__(self, supplier_id: UUID) -> None:
         self.supplier_id = supplier_id
-        super().__init__(f"Proveedor {supplier_id} no válido o no es de tipo supplier")
+        super().__init__(
+            code="supplier_not_valid",
+            message="El proveedor no existe o no tiene tipo proveedor",
+            supplier_id=str(supplier_id),
+        )
 
 
-class WarehouseNotFoundError(Exception):
+class WarehouseNotFoundError(ResourceNotFoundError):
     def __init__(self, warehouse_id: UUID) -> None:
         self.warehouse_id = warehouse_id
-        super().__init__(f"Depósito {warehouse_id} no encontrado")
+        super().__init__(entity="Depósito", id=warehouse_id)
 
 
-class CurrencyNotValidError(Exception):
+class CurrencyNotValidError(BusinessRuleError):
     def __init__(self, currency_code: str) -> None:
         self.currency_code = currency_code
-        super().__init__(f"Moneda '{currency_code}' no válida o inactiva")
+        super().__init__(
+            code="currency_not_valid",
+            message=f"La moneda '{currency_code}' no es válida o está inactiva",
+            currency_code=currency_code,
+        )
 
 
-class ProductNotFoundError(Exception):
+class ProductNotFoundError(ResourceNotFoundError):
     def __init__(self, product_id: UUID) -> None:
         self.product_id = product_id
-        super().__init__(f"Producto {product_id} no encontrado")
+        super().__init__(entity="Producto", id=product_id)
 
 
-class ProductUnitNotFoundError(Exception):
+class ProductUnitNotFoundError(ResourceNotFoundError):
     def __init__(self, unit_id: UUID) -> None:
         self.unit_id = unit_id
-        super().__init__(f"Unidad de producto {unit_id} no encontrada")
+        super().__init__(entity="Unidad de producto", id=unit_id)
 
 
-class ProductUnitNotActiveError(Exception):
+class ProductUnitNotActiveError(BusinessRuleError):
     def __init__(self, unit_id: UUID) -> None:
         self.unit_id = unit_id
-        super().__init__(f"Unidad de producto {unit_id} está inactiva")
+        super().__init__(
+            code="product_unit_not_active",
+            message="La unidad de producto está inactiva",
+            unit_id=str(unit_id),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +162,7 @@ async def _get_purchase_or_raise(db: AsyncSession, purchase_id: UUID) -> Purchas
         )
     ).scalar_one_or_none()
     if purchase is None:
-        raise PurchaseNotFoundError(f"Compra {purchase_id} no encontrada")
+        raise PurchaseNotFoundError(purchase_id)
     return purchase
 
 
@@ -397,7 +417,7 @@ async def update_item(
         )
     ).scalar_one_or_none()
     if item is None:
-        raise PurchaseNotFoundError(f"Item {item_id} no encontrado en compra {purchase_id}")
+        raise PurchaseNotFoundError(item_id)
 
     updates = data.model_dump(exclude_unset=True)
     if "quantity" in updates:
@@ -452,7 +472,7 @@ async def remove_item(
         )
     ).scalar_one_or_none()
     if item is None:
-        raise PurchaseNotFoundError(f"Item {item_id} no encontrado en compra {purchase_id}")
+        raise PurchaseNotFoundError(item_id)
 
     await db.delete(item)
     await db.flush()
@@ -506,7 +526,7 @@ async def confirm_purchase(
 
     items = await _get_items(db, purchase_id)
     if not items:
-        raise PurchaseHasNoItemsError(f"Compra {purchase_id} no tiene items")
+        raise PurchaseHasNoItemsError()
 
     purchase.purchase_number = await generate_purchase_number(db)
     purchase.status = PurchaseStatus.CONFIRMED

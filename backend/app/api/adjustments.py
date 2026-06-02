@@ -3,7 +3,7 @@ import math
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,17 +23,6 @@ from app.schemas.adjustments import (
     AdjustmentUpdate,
 )
 from app.services import adjustment_service
-from app.services.adjustment_service import (
-    AdjustmentHasNoItemsError,
-    AdjustmentNotFoundError,
-    CostRequiredForInError,
-    InvalidAdjustmentStateError,
-    ProductNotFoundError,
-    ProductUnitNotActiveError,
-    ProductUnitNotFoundError,
-    WarehouseNotFoundError,
-)
-from app.services.stock_service import InsufficientStockError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -105,31 +94,9 @@ async def create_adjustment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        adj = await adjustment_service.create_adjustment(db, data=body, user_id=current_user.id)
-    except WarehouseNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "warehouse_not_found", "warehouse_id": str(e.warehouse_id)},
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(adj)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Conflicto al crear ajuste (número duplicado)",
-        )
-    except Exception:
-        logger.exception("Error al crear ajuste %s", body.id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al crear ajuste",
-        )
-
+    adj = await adjustment_service.create_adjustment(db, data=body, user_id=current_user.id)
+    await db.commit()
+    await db.refresh(adj)
     return _adj_to_out(adj, [])
 
 
@@ -139,10 +106,7 @@ async def get_adjustment(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    try:
-        adj, items = await adjustment_service.get_adjustment(db, adjustment_id)
-    except AdjustmentNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ajuste no encontrado")
+    adj, items = await adjustment_service.get_adjustment(db, adjustment_id)
     return _adj_to_out(adj, items)
 
 
@@ -153,34 +117,11 @@ async def update_adjustment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        adj = await adjustment_service.update_adjustment(
-            db, adjustment_id=adjustment_id, data=body, user_id=current_user.id
-        )
-    except AdjustmentNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ajuste no encontrado")
-    except InvalidAdjustmentStateError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "invalid_state", "status": e.current_status.value},
-        )
-    except WarehouseNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "warehouse_not_found", "warehouse_id": str(e.warehouse_id)},
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(adj)
-    except Exception:
-        logger.exception("Error al actualizar ajuste %s", adjustment_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al actualizar ajuste",
-        )
-
+    adj = await adjustment_service.update_adjustment(
+        db, adjustment_id=adjustment_id, data=body, user_id=current_user.id
+    )
+    await db.commit()
+    await db.refresh(adj)
     _, items = await adjustment_service.get_adjustment(db, adjustment_id)
     return _adj_to_out(adj, items)
 
@@ -191,27 +132,10 @@ async def delete_adjustment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        await adjustment_service.delete_adjustment(
-            db, adjustment_id=adjustment_id, user_id=current_user.id
-        )
-    except AdjustmentNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ajuste no encontrado")
-    except InvalidAdjustmentStateError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "invalid_state", "status": e.current_status.value},
-        )
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al eliminar ajuste %s", adjustment_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al eliminar ajuste",
-        )
+    await adjustment_service.delete_adjustment(
+        db, adjustment_id=adjustment_id, user_id=current_user.id
+    )
+    await db.commit()
 
 
 @router.post(
@@ -225,49 +149,11 @@ async def add_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        item = await adjustment_service.add_item(
-            db, adjustment_id=adjustment_id, data=body, user_id=current_user.id
-        )
-    except AdjustmentNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ajuste no encontrado")
-    except InvalidAdjustmentStateError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "invalid_state", "status": e.current_status.value},
-        )
-    except ProductNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "product_not_found", "product_id": str(e.product_id)},
-        )
-    except ProductUnitNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "product_unit_not_found", "unit_id": str(e.unit_id)},
-        )
-    except ProductUnitNotActiveError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "product_unit_not_active", "unit_id": str(e.unit_id)},
-        )
-    except CostRequiredForInError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "cost_required_for_in"},
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(item)
-    except Exception:
-        logger.exception("Error al agregar item a ajuste %s", adjustment_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al agregar item",
-        )
-
+    item = await adjustment_service.add_item(
+        db, adjustment_id=adjustment_id, data=body, user_id=current_user.id
+    )
+    await db.commit()
+    await db.refresh(item)
     return _item_to_out(item)
 
 
@@ -282,40 +168,15 @@ async def update_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        item = await adjustment_service.update_item(
-            db,
-            adjustment_id=adjustment_id,
-            item_id=item_id,
-            data=body,
-            user_id=current_user.id,
-        )
-    except AdjustmentNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Ajuste o item no encontrado"
-        )
-    except InvalidAdjustmentStateError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "invalid_state", "status": e.current_status.value},
-        )
-    except CostRequiredForInError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "cost_required_for_in"},
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(item)
-    except Exception:
-        logger.exception("Error al actualizar item %s", item_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al actualizar item",
-        )
-
+    item = await adjustment_service.update_item(
+        db,
+        adjustment_id=adjustment_id,
+        item_id=item_id,
+        data=body,
+        user_id=current_user.id,
+    )
+    await db.commit()
+    await db.refresh(item)
     return _item_to_out(item)
 
 
@@ -329,29 +190,10 @@ async def remove_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        await adjustment_service.remove_item(
-            db, adjustment_id=adjustment_id, item_id=item_id, user_id=current_user.id
-        )
-    except AdjustmentNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Ajuste o item no encontrado"
-        )
-    except InvalidAdjustmentStateError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "invalid_state", "status": e.current_status.value},
-        )
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al eliminar item %s", item_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al eliminar item",
-        )
+    await adjustment_service.remove_item(
+        db, adjustment_id=adjustment_id, item_id=item_id, user_id=current_user.id
+    )
+    await db.commit()
 
 
 @router.post("/{adjustment_id}/confirm", response_model=AdjustmentOut)
@@ -360,58 +202,20 @@ async def confirm_adjustment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        adj = await adjustment_service.confirm_adjustment(
-            db, adjustment_id=adjustment_id, user_id=current_user.id
-        )
-    except AdjustmentNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ajuste no encontrado")
-    except InvalidAdjustmentStateError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "invalid_state", "status": e.current_status.value},
-        )
-    except AdjustmentHasNoItemsError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "adjustment_has_no_items"},
-        )
-    except InsufficientStockError as e:
-        detail: dict = {
-            "code": "insufficient_stock",
-            "product_id": str(e.product_id),
-            "available": str(e.available),
-            "requested": str(e.requested),
-        }
-        if e.product_name:
-            detail["product_name"] = e.product_name
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
-
+    adj = await adjustment_service.confirm_adjustment(
+        db, adjustment_id=adjustment_id, user_id=current_user.id
+    )
     try:
         await db.commit()
         await db.refresh(adj)
     except IntegrityError:
+        # Race condition en adjustment_number — reintentar una vez
         await db.rollback()
-        try:
-            adj = await adjustment_service.confirm_adjustment(
-                db, adjustment_id=adjustment_id, user_id=current_user.id
-            )
-            await db.commit()
-            await db.refresh(adj)
-        except Exception:
-            logger.exception("Error al confirmar ajuste %s (reintento)", adjustment_id)
-            await db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error al confirmar ajuste",
-            )
-    except Exception:
-        logger.exception("Error al confirmar ajuste %s", adjustment_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al confirmar ajuste",
+        adj = await adjustment_service.confirm_adjustment(
+            db, adjustment_id=adjustment_id, user_id=current_user.id
         )
+        await db.commit()
+        await db.refresh(adj)
 
     _, items = await adjustment_service.get_adjustment(db, adjustment_id)
     return _adj_to_out(adj, items)
@@ -423,10 +227,7 @@ async def get_adjustment_audit(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    try:
-        entries = await adjustment_service.get_adjustment_audit(db, adjustment_id)
-    except AdjustmentNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ajuste no encontrado")
+    entries = await adjustment_service.get_adjustment_audit(db, adjustment_id)
     return [AdjustmentAuditEntry(**e) for e in entries]
 
 
@@ -437,28 +238,10 @@ async def cancel_adjustment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        adj = await adjustment_service.cancel_adjustment(
-            db, adjustment_id=adjustment_id, user_id=current_user.id, reason=body.reason
-        )
-    except AdjustmentNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ajuste no encontrado")
-    except InvalidAdjustmentStateError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "invalid_state", "status": e.current_status.value},
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(adj)
-    except Exception:
-        logger.exception("Error al cancelar ajuste %s", adjustment_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al cancelar ajuste",
-        )
-
+    adj = await adjustment_service.cancel_adjustment(
+        db, adjustment_id=adjustment_id, user_id=current_user.id, reason=body.reason
+    )
+    await db.commit()
+    await db.refresh(adj)
     _, items = await adjustment_service.get_adjustment(db, adjustment_id)
     return _adj_to_out(adj, items)

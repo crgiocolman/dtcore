@@ -6,17 +6,23 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.exceptions import BusinessRuleError
 from app.models.products import ProductPrice
 from app.schemas.prices import PriceCreate
 
 logger = logging.getLogger(__name__)
 
 
-class PriceDateConflictError(Exception):
+class PriceDateConflictError(BusinessRuleError):
     def __init__(self, latest_date: date) -> None:
         self.latest_date = latest_date
         super().__init__(
-            f"No se pueden cargar precios con fecha anterior al último registrado ({latest_date})"
+            code="price_date_conflict",
+            message=(
+                f"No se pueden cargar precios con fecha anterior al último registrado "
+                f"({latest_date})"
+            ),
+            latest_date=str(latest_date),
         )
 
 

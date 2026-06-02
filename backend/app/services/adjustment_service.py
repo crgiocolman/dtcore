@@ -13,6 +13,7 @@ from app.enums import (
     StockMovementType,
     StockReferenceType,
 )
+from app.exceptions import BusinessRuleError, InvalidStateError, ResourceNotFoundError
 from app.models.audit import AuditLog
 from app.models.inventory import StockAdjustment, StockAdjustmentItem, StockCurrent, Warehouse
 from app.models.products import Product, ProductUnit
@@ -34,49 +35,64 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class AdjustmentNotFoundError(Exception):
-    pass
+class AdjustmentNotFoundError(ResourceNotFoundError):
+    def __init__(self, adjustment_id=None) -> None:
+        super().__init__(entity="Ajuste", id=adjustment_id)
 
 
-class InvalidAdjustmentStateError(Exception):
+class InvalidAdjustmentStateError(InvalidStateError):
     def __init__(self, adjustment_id: UUID, current_status: AdjustmentStatus) -> None:
         self.adjustment_id = adjustment_id
         self.current_status = current_status
         super().__init__(
-            f"Ajuste {adjustment_id} está en estado '{current_status.value}', operación no permitida"
+            entity="Ajuste",
+            current_state=current_status.value,
+            attempted_action="operación solicitada",
         )
 
 
-class AdjustmentHasNoItemsError(Exception):
-    pass
+class AdjustmentHasNoItemsError(BusinessRuleError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="adjustment_has_no_items",
+            message="El ajuste debe tener al menos un ítem para confirmarse",
+        )
 
 
-class WarehouseNotFoundError(Exception):
+class WarehouseNotFoundError(ResourceNotFoundError):
     def __init__(self, warehouse_id: UUID) -> None:
         self.warehouse_id = warehouse_id
-        super().__init__(f"Depósito {warehouse_id} no encontrado")
+        super().__init__(entity="Depósito", id=warehouse_id)
 
 
-class ProductNotFoundError(Exception):
+class ProductNotFoundError(ResourceNotFoundError):
     def __init__(self, product_id: UUID) -> None:
         self.product_id = product_id
-        super().__init__(f"Producto {product_id} no encontrado")
+        super().__init__(entity="Producto", id=product_id)
 
 
-class ProductUnitNotFoundError(Exception):
+class ProductUnitNotFoundError(ResourceNotFoundError):
     def __init__(self, unit_id: UUID) -> None:
         self.unit_id = unit_id
-        super().__init__(f"Unidad de producto {unit_id} no encontrada")
+        super().__init__(entity="Unidad de producto", id=unit_id)
 
 
-class ProductUnitNotActiveError(Exception):
+class ProductUnitNotActiveError(BusinessRuleError):
     def __init__(self, unit_id: UUID) -> None:
         self.unit_id = unit_id
-        super().__init__(f"Unidad de producto {unit_id} está inactiva")
+        super().__init__(
+            code="product_unit_not_active",
+            message="La unidad de producto está inactiva",
+            unit_id=str(unit_id),
+        )
 
 
-class CostRequiredForInError(Exception):
-    pass
+class CostRequiredForInError(BusinessRuleError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="cost_required_for_in",
+            message="El costo unitario es obligatorio para ajustes de entrada",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +124,7 @@ async def _get_adjustment_or_raise(db: AsyncSession, adjustment_id: UUID) -> Sto
         )
     ).scalar_one_or_none()
     if adj is None:
-        raise AdjustmentNotFoundError(f"Ajuste {adjustment_id} no encontrado")
+        raise AdjustmentNotFoundError(adjustment_id)
     return adj
 
 
@@ -246,7 +262,7 @@ async def add_item(
         raise InvalidAdjustmentStateError(adjustment_id, adj.status)
 
     if data.direction == StockDirection.IN and data.unit_cost_base is None:
-        raise CostRequiredForInError("unit_cost_base requerido para direction='in'")
+        raise CostRequiredForInError()
 
     product = (
         await db.execute(
@@ -321,7 +337,7 @@ async def update_item(
         )
     ).scalar_one_or_none()
     if item is None:
-        raise AdjustmentNotFoundError(f"Item {item_id} no encontrado en ajuste {adjustment_id}")
+        raise AdjustmentNotFoundError(item_id)
 
     updates = data.model_dump(exclude_unset=True)
     if "quantity" in updates:
@@ -334,7 +350,7 @@ async def update_item(
         item.notes = updates["notes"]
 
     if item.direction == StockDirection.IN and item.unit_cost_base is None:
-        raise CostRequiredForInError("unit_cost_base requerido para direction='in'")
+        raise CostRequiredForInError()
 
     unit = (
         await db.execute(select(ProductUnit).where(ProductUnit.id == item.product_unit_id))
@@ -373,7 +389,7 @@ async def remove_item(
         )
     ).scalar_one_or_none()
     if item is None:
-        raise AdjustmentNotFoundError(f"Item {item_id} no encontrado en ajuste {adjustment_id}")
+        raise AdjustmentNotFoundError(item_id)
 
     await db.delete(item)
     await db.flush()
@@ -406,7 +422,7 @@ async def confirm_adjustment(
 
     items = await _get_items(db, adjustment_id)
     if not items:
-        raise AdjustmentHasNoItemsError(f"Ajuste {adjustment_id} no tiene items")
+        raise AdjustmentHasNoItemsError()
 
     adj.status = AdjustmentStatus.CONFIRMED
     adj.updated_by_user_id = user_id

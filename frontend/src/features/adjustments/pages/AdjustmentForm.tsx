@@ -34,22 +34,17 @@ import {
 } from '../api/adjustments'
 import { useItemFormShortcuts } from '../../purchases/hooks/useItemFormShortcuts'
 import { formatQuantity } from '../../../lib/format'
+import { parseApiError as _parseErr } from '../../../lib/parseApiError'
 
 // ---- Helpers ----
 
 function parseApiError(err: unknown): string {
-  if (!(err instanceof Error)) return 'Error desconocido'
-  try {
-    const p = JSON.parse(err.message)
-    if (p?.detail?.code === 'insufficient_stock') {
-      const name = p.detail.product_name ?? 'producto'
-      return `Stock insuficiente para "${name}": disponible ${p.detail.available}, solicitado ${p.detail.requested}`
-    }
-    if (typeof p?.detail === 'object' && p.detail !== null) return p.detail.message ?? err.message
-    return p?.detail ?? err.message
-  } catch {
-    return err.message
+  const parsed = _parseErr(err)
+  if (parsed.code === 'insufficient_stock') {
+    const name = (parsed.details.product_name as string) ?? 'producto'
+    return `Stock insuficiente para "${name}": disponible ${parsed.details.available}, solicitado ${parsed.details.requested}`
   }
+  return parsed.message
 }
 
 function formatCostPYG(value: string | number | null): string {

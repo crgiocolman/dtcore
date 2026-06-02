@@ -2,7 +2,7 @@ import logging
 import math
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -12,7 +12,6 @@ from app.models.contacts import Contact
 from app.models.users import User
 from app.schemas.contacts import ContactCreate, ContactListOut, ContactOut, ContactUpdate
 from app.services import contact_service
-from app.services.contact_service import ContactNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,7 @@ async def get_contact(
 ):
     contact = await contact_service.get_contact(db, contact_id)
     if contact is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contacto no encontrado")
+        raise contact_service.ContactNotFoundError(contact_id)
     return _to_out(contact)
 
 
@@ -84,16 +83,8 @@ async def create_contact(
     current_user: User = Depends(get_current_user),
 ):
     contact = await contact_service.create_contact(db, data=body, user_id=current_user.id)
-    try:
-        await db.commit()
-        await db.refresh(contact)
-    except Exception:
-        logger.exception("Error al crear contacto")
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al crear contacto",
-        )
+    await db.commit()
+    await db.refresh(contact)
     return _to_out(contact)
 
 
@@ -104,23 +95,11 @@ async def update_contact(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        contact = await contact_service.update_contact(
-            db, contact_id, data=body, user_id=current_user.id
-        )
-    except ContactNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contacto no encontrado")
-
-    try:
-        await db.commit()
-        await db.refresh(contact)
-    except Exception:
-        logger.exception("Error al actualizar contacto %s", contact_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al actualizar contacto",
-        )
+    contact = await contact_service.update_contact(
+        db, contact_id, data=body, user_id=current_user.id
+    )
+    await db.commit()
+    await db.refresh(contact)
     return _to_out(contact)
 
 
@@ -130,17 +109,5 @@ async def delete_contact(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        await contact_service.delete_contact(db, contact_id, user_id=current_user.id)
-    except ContactNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contacto no encontrado")
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al eliminar contacto %s", contact_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al eliminar contacto",
-        )
+    await contact_service.delete_contact(db, contact_id, user_id=current_user.id)
+    await db.commit()

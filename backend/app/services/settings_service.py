@@ -10,9 +10,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import SettingValueType
+from app.exceptions import ResourceNotFoundError
 from app.models.settings import Setting
 
 logger = logging.getLogger(__name__)
+
+
+class SettingNotFoundError(ResourceNotFoundError):
+    def __init__(self, key: str) -> None:
+        super().__init__(entity=f"Setting '{key}'")
+
 
 _CACHE_TTL = 60  # seconds
 
@@ -97,7 +104,7 @@ async def get_all_settings(db: AsyncSession) -> dict[str, Any]:
 async def get_setting(db: AsyncSession, key: str) -> Any:
     all_settings = await get_all_settings(db)
     if key not in all_settings:
-        raise KeyError(f"Setting '{key}' not found")
+        raise SettingNotFoundError(key)
     return all_settings[key]
 
 
@@ -107,13 +114,12 @@ async def set_setting(
     result = await db.execute(select(Setting).where(Setting.key == key))
     setting = result.scalar_one_or_none()
     if setting is None:
-        raise KeyError(f"Setting '{key}' not found")
+        raise SettingNotFoundError(key)
 
     setting.value = _serialize_value(value, setting.value_type)
     setting.updated_by_user_id = user_id
     setting.updated_at = datetime.now(timezone.utc)
     _invalidate_cache()
-    logger.info("set_setting: key=%s user_id=%s", key, user_id)
     return setting
 
 

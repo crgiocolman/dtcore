@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import AuditAction
+from app.exceptions import ConflictError, ResourceNotFoundError
 from app.models.audit import AuditLog
 from app.models.currencies import Currency, ExchangeRate
 from app.models.purchases import Purchase
@@ -15,16 +16,25 @@ from app.models.sales import Sale
 logger = logging.getLogger(__name__)
 
 
-class ExchangeRateNotFoundError(Exception):
-    pass
+class ExchangeRateNotFoundError(ResourceNotFoundError):
+    def __init__(self, rate_id=None) -> None:
+        super().__init__(entity="Tipo de cambio", id=rate_id)
 
 
-class ExchangeRateNotLatestError(Exception):
-    pass
+class ExchangeRateNotLatestError(ConflictError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="exchange_rate_not_latest",
+            message="Solo se puede modificar el tipo de cambio más reciente",
+        )
 
 
-class ExchangeRateInUseError(Exception):
-    pass
+class ExchangeRateInUseError(ConflictError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="exchange_rate_in_use",
+            message="El tipo de cambio está en uso en transacciones y no puede eliminarse",
+        )
 
 
 async def get_all_currencies(db: AsyncSession) -> list[Currency]:

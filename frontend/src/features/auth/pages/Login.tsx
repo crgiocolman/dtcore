@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { parseApiError } from '../../../lib/parseApiError'
 
 export function Login() {
   const { isAuthenticated, login } = useAuth()
@@ -24,7 +25,7 @@ export function Login() {
       await login(username, password)
       navigate(from, { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
+      setError(parseApiError(err).message)
     } finally {
       setLoading(false)
     }

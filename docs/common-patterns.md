@@ -526,6 +526,190 @@ Patrones que no han aparecido todavía pero se esperan:
 - Hook custom de fetch con manejo de loading/error
 - Componente de búsqueda con autocomplete (para POS y selectores)
 - Modal con foco gestionado y cierre con Esc
-- Toast/notificación de éxito/error
-- Manejo de errores de red en frontend
 - Paginación cliente vs server-side
+
+---
+
+## Logging: qué va al archivo vs qué va a audit_log
+
+**Regla simple:** `backend.log` = diagnóstico del runtime. `audit_log` (tabla BD) = trazabilidad de negocio.
+
+| Evento | Dónde |
+|---|---|
+| App startup / shutdown | `backend.log` INFO |
+| Login fallido (username + IP) | `backend.log` WARNING |
+| Excepción no manejada (500) | `backend.log` ERROR |
+| IntegrityError no anticipado | `backend.log` ERROR |
+| Error de tarea/script | `backend.log` ERROR |
+| Login exitoso | `audit_log` (via `users.last_login_at`) |
+| Venta / compra confirmada o cancelada | `audit_log` |
+| Ajuste de stock confirmado o cancelado | `audit_log` |
+| Cambio de configuración (settings) | `audit_log` |
+| JWT inválido / expirado | silencioso — ocurrencia normal |
+| Requests GET / búsquedas | silencioso |
+
+**Señal de que el log tiene el scope correcto:** un día de uso normal pesa pocos KB. Si pesa MB, hay algo que no debería estar ahí.
+
+---
+
+## Manejo de errores: backend
+
+### Contrato de respuesta de error
+
+Todo error de la API devuelve:
+```json
+{ "detail": { "code": "snake_case_id", "message": "Mensaje en español", "...campos extra..." } }
+```
+
+### Jerarquía de excepciones (`app/exceptions.py`)
+
+| Clase | HTTP | Cuándo usarla |
+|---|---|---|
+| `ResourceNotFoundError(entity, id)` | 404 | Recurso no existe |
+| `DuplicateError(entity, field, value)` | 409 | Unicidad violada |
+| `ConflictError(code, message, **details)` | 409 | Conflicto de estado, ciclos, restricciones |
+| `InvalidStateError(entity, current_state, attempted_action)` | 409 | Transición de estado inválida |
+| `BusinessRuleError(code, message, **details)` | 422 | Regla de negocio violada |
+| `InsufficientStockError(product_id, available, requested, product_name)` | 422 | Stock insuficiente |
+| `ForbiddenError(reason)` | 403 | Permiso denegado |
+
+### Definir una excepción custom en un service
+
+```python
+# En el service file, al inicio, después de los imports
+from app.exceptions import ResourceNotFoundError, ConflictError
+
+class ProductNotFoundError(ResourceNotFoundError):
+    def __init__(self, product_id=None) -> None:
+        super().__init__(entity="Producto", id=product_id)
+
+class SKUConflictOnRestoreError(ConflictError):
+    def __init__(self, sku: str, conflicting_product_id: UUID) -> None:
+        self.sku = sku
+        super().__init__(
+            code="sku_conflict_on_restore",
+            message=f"El SKU '{sku}' ya está en uso",
+            conflicting_value=sku,
+            conflicting_product_id=str(conflicting_product_id),
+        )
+```
+
+### Cómo se mapea a HTTP
+
+Los handlers globales en `main.py` capturan automáticamente cualquier subclase de `DTCoreError`. No se necesita código en el router para convertir la excepción — basta con dejar que propague.
+
+El rollback de la sesión de DB también es automático: `get_db()` llama `session.rollback()` en el `except` si la excepción escapa del handler.
+
+### Uso en service
+
+```python
+async def get_product_or_raise(db, product_id):
+    product = await db.get(Product, product_id)
+    if product is None:
+        raise ProductNotFoundError(product_id)  # propaga → global handler → 404
+    return product
+```
+
+### Uso en router (patrón simplificado)
+
+```python
+@router.post("")
+async def create_product(body: ProductCreate, db = Depends(get_db), ...):
+    product = await product_service.create_product(db, data=body, ...)  # DTCoreError propaga si falla
+    await db.commit()     # IntegrityError propaga → global handler → 409
+    await db.refresh(product)
+    return _to_out(product)
+```
+
+**No capturar** `DTCoreError` en el router — el handler global lo convierte al formato estándar.  
+**Excepción**: el retry de `IntegrityError` en `confirm_sale/purchase/adjustment` por la race condition del número correlativo.
+
+---
+
+## Manejo de errores: frontend
+
+### `parseApiError` centralizado (`src/lib/parseApiError.ts`)
+
+Convierte cualquier error de `apiFetch` en un objeto `ParsedApiError` consistente:
+
+```typescript
+import { parseApiError } from '../../../lib/parseApiError'
+
+try {
+  await someApiCall()
+} catch (err) {
+  const parsed = parseApiError(err)
+  // parsed.code          → "insufficient_stock", "not_found", "network_error", etc.
+  // parsed.message       → mensaje en español listo para mostrar al usuario
+  // parsed.details       → campos extra del backend (product_name, available, etc.)
+  // parsed.httpStatus    → 0 si network error
+  // parsed.isNetworkError → true si no hubo respuesta del servidor
+  toast.error(parsed.message)
+}
+```
+
+### Toast global (`src/components/Toast.tsx`)
+
+```typescript
+import { toast } from '../../../components/Toast'
+
+toast.success('Producto guardado')
+toast.error('No se pudo guardar el producto')   // sin auto-dismiss
+toast.warning('Algunos datos no pudieron cargarse')
+toast.info('Tip: usá F4 para cobrar')
+```
+
+`<ToastContainer />` está montado en `App.tsx`.
+
+### Cuándo usar toast vs mensaje inline
+
+| Situación | Mostrar |
+|---|---|
+| Mutación (crear, guardar, confirmar, cancelar) | Toast |
+| Carga de lista fallida (el usuario ve la pantalla vacía) | Inline en la página |
+| Error en campo de formulario (validación) | Inline debajo del campo |
+| Error de red durante la carga del dashboard | Toast warning |
+| Error de autenticación → redirect | Silencioso (el redirect es feedback suficiente) |
+
+### Preservar datos del formulario tras error
+
+```typescript
+const handleSave = async () => {
+  setSaving(true)
+  try {
+    await saveProduct(data)
+    // éxito: navegar o mostrar toast
+  } catch (err) {
+    const parsed = parseApiError(err)
+    toast.error(parsed.message)
+    // NO resetear el estado del formulario — el usuario puede corregir y reintentar
+  } finally {
+    setSaving(false)
+  }
+}
+```
+
+### Mensajes exactos por tipo de error de conectividad
+
+| Situación | `code` | Mensaje mostrado al usuario |
+|---|---|---|
+| Backend caído / sin red | `network_error` | "Sin conexión con el servidor. Verificá que la red esté disponible." |
+| Timeout (>10 s sin respuesta) | `timeout_error` | "El servidor está tardando en responder. Reintentá." |
+| Error 5xx sin body parseable | `unknown_error` | "El servidor tuvo un problema. Reintentá en unos segundos." |
+| Error 5xx con body estructurado | `internal_error` (u otro) | El `message` del body (e.g., "Error interno del servidor") |
+
+El timeout se dispara mediante `AbortController` configurado en `apiFetch` (10 s). Los callers no necesitan configurar nada — si el fetch tarda más de 10 s, `parseApiError` recibe un `AbortError` y devuelve el mensaje correspondiente.
+
+### Caso especial: stock insuficiente en POS/Ajustes
+
+```typescript
+const parsed = parseApiError(err)
+if (parsed.code === 'insufficient_stock') {
+  const name = parsed.details.product_name as string ?? 'Producto'
+  const avail = parsed.details.available as string
+  const req = parsed.details.requested as string
+  setPaymentError(`Stock insuficiente — ${name}: disponible ${avail}, solicitado ${req}`)
+} else {
+  setPaymentError(parsed.message)
+}
+```

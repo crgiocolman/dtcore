@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, Pencil, Plus, Trash2, X, XCircle } from 'lucide-react'
+import { parseApiError as _parseErr } from '../../../lib/parseApiError'
 import {
   createExchangeRate,
   deleteExchangeRate,
@@ -73,13 +74,7 @@ function Toggle({ checked, onChange, disabled }: ToggleProps) {
 // ---- Helpers ----
 
 function parseApiError(err: unknown): string {
-  if (!(err instanceof Error)) return 'Error desconocido'
-  try {
-    const parsed = JSON.parse(err.message)
-    return parsed?.detail ?? err.message
-  } catch {
-    return err.message
-  }
+  return _parseErr(err).message
 }
 
 function formatDate(dateStr: string): string {

@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import AuditAction, ContactType
+from app.exceptions import ResourceNotFoundError
 from app.models.audit import AuditLog
 from app.models.contacts import Contact
 from app.schemas.contacts import ContactCreate, ContactUpdate
@@ -13,8 +14,9 @@ from app.schemas.contacts import ContactCreate, ContactUpdate
 logger = logging.getLogger(__name__)
 
 
-class ContactNotFoundError(Exception):
-    pass
+class ContactNotFoundError(ResourceNotFoundError):
+    def __init__(self, contact_id=None) -> None:
+        super().__init__(entity="Contacto", id=contact_id)
 
 
 async def get_contact(db: AsyncSession, contact_id: UUID) -> Contact | None:

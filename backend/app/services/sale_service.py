@@ -31,8 +31,9 @@ from app.schemas.sales import (
     SalePaymentCreate,
     SaleUpdate,
 )
+from app.exceptions import BusinessRuleError, InvalidStateError, ResourceNotFoundError
 from app.services import settings_service, stock_service
-from app.services.stock_service import InsufficientStockError  # noqa: F401 — re-exportado para el router
+from app.services.stock_service import InsufficientStockError  # noqa: F401 — re-export
 
 logger = logging.getLogger(__name__)
 
@@ -42,71 +43,97 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class SaleNotFoundError(Exception):
-    pass
+class SaleNotFoundError(ResourceNotFoundError):
+    def __init__(self, sale_id=None) -> None:
+        super().__init__(entity="Venta", id=sale_id)
 
 
-class InvalidSaleStateError(Exception):
+class InvalidSaleStateError(InvalidStateError):
     def __init__(self, sale_id: UUID, current_status: SaleStatus) -> None:
         self.sale_id = sale_id
         self.current_status = current_status
         super().__init__(
-            f"Venta {sale_id} está en estado '{current_status.value}', operación no permitida"
+            entity="Venta",
+            current_state=current_status.value,
+            attempted_action="operación solicitada",
         )
 
 
-class SaleHasNoItemsError(Exception):
-    pass
+class SaleHasNoItemsError(BusinessRuleError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="sale_has_no_items",
+            message="La venta debe tener al menos un ítem para confirmarse",
+        )
 
 
-class CustomerNotValidError(Exception):
+class CustomerNotValidError(BusinessRuleError):
     def __init__(self, customer_id: UUID) -> None:
         self.customer_id = customer_id
-        super().__init__(f"Cliente {customer_id} no válido o no es de tipo customer")
+        super().__init__(
+            code="customer_not_valid",
+            message="El cliente no existe o no tiene tipo cliente",
+            customer_id=str(customer_id),
+        )
 
 
-class CustomerRequiredError(Exception):
-    pass
+class CustomerRequiredError(BusinessRuleError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="customer_required",
+            message="Esta venta requiere un cliente seleccionado",
+        )
 
 
-class PaymentSumMismatchError(Exception):
+class PaymentSumMismatchError(BusinessRuleError):
     def __init__(self, sale_id: UUID, expected: Decimal, actual: Decimal) -> None:
         self.sale_id = sale_id
         self.expected = expected
         self.actual = actual
         super().__init__(
-            f"Suma de pagos {actual} no coincide con total de venta {expected}"
+            code="payment_sum_mismatch",
+            message=f"La suma de pagos ({actual}) no coincide con el total de la venta ({expected})",
+            expected=str(expected),
+            actual=str(actual),
         )
 
 
-class ProductNotFoundError(Exception):
+class ProductNotFoundError(ResourceNotFoundError):
     def __init__(self, product_id: UUID) -> None:
         self.product_id = product_id
-        super().__init__(f"Producto {product_id} no encontrado")
+        super().__init__(entity="Producto", id=product_id)
 
 
-class ProductUnitNotFoundError(Exception):
+class ProductUnitNotFoundError(ResourceNotFoundError):
     def __init__(self, unit_id: UUID) -> None:
         self.unit_id = unit_id
-        super().__init__(f"Unidad de producto {unit_id} no encontrada")
+        super().__init__(entity="Unidad de producto", id=unit_id)
 
 
-class ProductUnitNotActiveError(Exception):
+class ProductUnitNotActiveError(BusinessRuleError):
     def __init__(self, unit_id: UUID) -> None:
         self.unit_id = unit_id
-        super().__init__(f"Unidad de producto {unit_id} está inactiva")
+        super().__init__(
+            code="product_unit_not_active",
+            message="La unidad de producto está inactiva",
+            unit_id=str(unit_id),
+        )
 
 
-class WarehouseNotFoundError(Exception):
+class WarehouseNotFoundError(ResourceNotFoundError):
     def __init__(self, warehouse_id: UUID) -> None:
         self.warehouse_id = warehouse_id
-        super().__init__(f"Depósito {warehouse_id} no encontrado")
+        super().__init__(entity="Depósito", id=warehouse_id)
 
 
-class CurrencyNotValidError(Exception):
+class CurrencyNotValidError(BusinessRuleError):
     def __init__(self, currency_code: str) -> None:
         self.currency_code = currency_code
-        super().__init__(f"Moneda '{currency_code}' no válida o inactiva")
+        super().__init__(
+            code="currency_not_valid",
+            message=f"La moneda '{currency_code}' no es válida o está inactiva",
+            currency_code=currency_code,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +194,7 @@ async def _get_sale_or_raise(db: AsyncSession, sale_id: UUID) -> Sale:
         )
     ).scalar_one_or_none()
     if sale is None:
-        raise SaleNotFoundError(f"Venta {sale_id} no encontrada")
+        raise SaleNotFoundError(sale_id)
     return sale
 
 
@@ -485,7 +512,7 @@ async def update_item(
         )
     ).scalar_one_or_none()
     if item is None:
-        raise SaleNotFoundError(f"Item {item_id} no encontrado en venta {sale_id}")
+        raise SaleNotFoundError(item_id)
 
     updates = data.model_dump(exclude_unset=True)
     for field, val in updates.items():
@@ -543,7 +570,7 @@ async def remove_item(
         )
     ).scalar_one_or_none()
     if item is None:
-        raise SaleNotFoundError(f"Item {item_id} no encontrado en venta {sale_id}")
+        raise SaleNotFoundError(item_id)
 
     await db.delete(item)
     await db.flush()
@@ -616,7 +643,7 @@ async def remove_payment(
         )
     ).scalar_one_or_none()
     if payment is None:
-        raise SaleNotFoundError(f"Pago {payment_id} no encontrado en venta {sale_id}")
+        raise SaleNotFoundError(payment_id)
 
     await db.delete(payment)
     sale.updated_by_user_id = user_id
@@ -647,12 +674,12 @@ async def confirm_sale(
 
     items = await _get_items(db, sale_id)
     if not items:
-        raise SaleHasNoItemsError(f"Venta {sale_id} no tiene items")
+        raise SaleHasNoItemsError()
 
     # 1. Validar cliente si la configuración lo requiere
     sale_requires_customer = await settings_service.get_setting(db, "sale_requires_customer")
     if sale_requires_customer and sale.customer_id is None:
-        raise CustomerRequiredError("La venta requiere un cliente asignado")
+        raise CustomerRequiredError()
 
     # 2. Validar suma de pagos
     payments = await _get_payments(db, sale_id)

@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.exceptions import BusinessRuleError, ConflictError, ResourceNotFoundError
 from app.models.inventory import StockAdjustmentItem
 from app.models.products import Product, ProductPrice, ProductUnit
 from app.models.purchases import PurchaseItem
@@ -16,41 +17,63 @@ from app.schemas.product_units import ProductUnitCreate, ProductUnitUpdate
 logger = logging.getLogger(__name__)
 
 
-class ProductUnitNotFoundError(Exception):
-    pass
+class ProductUnitNotFoundError(ResourceNotFoundError):
+    def __init__(self, unit_id=None) -> None:
+        super().__init__(entity="Unidad de producto", id=unit_id)
 
 
-class ProductUnitBaseUnitDeleteError(Exception):
-    """Base unit (factor_to_base == 1) cannot be deleted."""
-    pass
+class ProductUnitBaseUnitDeleteError(ConflictError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="base_unit_delete",
+            message="No se puede eliminar la unidad base del producto",
+        )
 
 
-class ProductUnitBaseUnitToggleError(Exception):
-    """Base unit (factor_to_base == 1) cannot be deactivated."""
-    pass
+class ProductUnitBaseUnitToggleError(ConflictError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="base_unit_toggle",
+            message="No se puede desactivar la unidad base del producto",
+        )
 
 
-class ProductUnitHasReferencesError(Exception):
-    """Unit referenced in transactions cannot be hard-deleted."""
-    pass
+class ProductUnitHasReferencesError(ConflictError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="unit_has_references",
+            message="La unidad está referenciada en transacciones y no puede eliminarse",
+        )
 
 
-class ProductUnitFactorImmutableError(Exception):
-    """factor_to_base cannot change once the unit has any reference."""
-    pass
+class ProductUnitFactorImmutableError(ConflictError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="factor_immutable",
+            message="El factor de conversión no puede modificarse una vez que la unidad tiene referencias",
+        )
 
 
-class ProductUnitNoDefaultError(Exception):
-    """Base unit must always hold at least one default flag."""
-    pass
+class ProductUnitNoDefaultError(BusinessRuleError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="no_default_unit",
+            message="Debe existir al menos una unidad marcada como predeterminada",
+        )
 
 
-class ProductUnitCatalogConflictError(Exception):
-    """A unit with the same catalog entry already exists (active or inactive)."""
+class ProductUnitCatalogConflictError(ConflictError):
     def __init__(self, unit_catalog_id: UUID, existing_is_active: bool, existing_id: UUID):
         self.unit_catalog_id = unit_catalog_id
         self.existing_is_active = existing_is_active
         self.existing_id = existing_id
+        super().__init__(
+            code="unit_catalog_conflict",
+            message="Ya existe una unidad con esa entrada de catálogo",
+            unit_catalog_id=str(unit_catalog_id),
+            existing_id=str(existing_id),
+            existing_is_active=existing_is_active,
+        )
 
 
 # ---------------------------------------------------------------------------

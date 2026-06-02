@@ -23,18 +23,10 @@ import {
 } from '../api/purchases'
 import { useItemFormShortcuts } from '../hooks/useItemFormShortcuts'
 import { formatExchangeRate, formatQuantity } from '../../../lib/format'
-
-// ---- Helpers ----
+import { parseApiError as _parseErr } from '../../../lib/parseApiError'
 
 function parseApiError(err: unknown): string {
-  if (!(err instanceof Error)) return 'Error desconocido'
-  try {
-    const p = JSON.parse(err.message)
-    if (typeof p?.detail === 'object' && p.detail !== null) return p.detail.message ?? err.message
-    return p?.detail ?? err.message
-  } catch {
-    return err.message
-  }
+  return _parseErr(err).message
 }
 
 function formatAmt(value: string | number, code: string): string {

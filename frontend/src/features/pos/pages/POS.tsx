@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../../lib/api'
 import { useKeyboardShortcuts } from '../../../lib/hooks/useKeyboardShortcuts'
 import { formatQuantity } from '../../../lib/format'
+import { parseApiError as _parseErr } from '../../../lib/parseApiError'
 import { fetchWarehouses } from '../../admin/api/warehouses'
 import type { UnitType } from '../../admin/api/unit_catalog'
 import { fetchContacts, type ContactOut } from '../../contacts/api/contacts'
@@ -66,14 +67,7 @@ interface PendingPayment {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseApiError(err: unknown): string {
-  if (!(err instanceof Error)) return 'Error desconocido'
-  try {
-    const p = JSON.parse(err.message)
-    if (typeof p?.detail === 'object' && p.detail !== null) return p.detail.message ?? err.message
-    return p?.detail ?? err.message
-  } catch {
-    return err.message
-  }
+  return _parseErr(err).message
 }
 
 function fmtPYG(value: number): string {
@@ -921,22 +915,17 @@ export function POS() {
       setPendingSaleId(null)
       setSuccessSaleNumber(result.sale_number ?? saleId.slice(0, 8))
     } catch (err) {
-      if (err instanceof Error) {
-        try {
-          const p = JSON.parse(err.message)
-          if (p?.detail?.code === 'insufficient_stock') {
-            const { product_id, product_name, available, requested } = p.detail
-            const name = product_name
-              ?? cartItems.find(i => i.product_id === product_id)?.product_name
-              ?? 'Producto'
-            const avail = Math.round(parseFloat(available) || 0)
-            const req = Math.round(parseFloat(requested) || 0)
-            setPaymentError(`Stock insuficiente — ${name}: disponible ${avail}, solicitado ${req}`)
-            return
-          }
-        } catch { /* fallthrough */ }
+      const parsed = _parseErr(err)
+      if (parsed.code === 'insufficient_stock') {
+        const name = (parsed.details.product_name as string)
+          ?? cartItems.find(i => i.product_id === parsed.details.product_id)?.product_name
+          ?? 'Producto'
+        const avail = Math.round(parseFloat((parsed.details.available as string) || '0'))
+        const req = Math.round(parseFloat((parsed.details.requested as string) || '0'))
+        setPaymentError(`Stock insuficiente — ${name}: disponible ${avail}, solicitado ${req}`)
+      } else {
+        setPaymentError(parsed.message)
       }
-      setPaymentError(parseApiError(err))
     } finally {
       setPaymentConfirming(false)
     }

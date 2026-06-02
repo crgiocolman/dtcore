@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { ApiError } from '../../lib/api'
 
 export interface AuthUser {
   id: string
@@ -69,8 +70,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     })
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error((data as { detail?: string }).detail ?? 'Error al iniciar sesión')
+      const text = await res.text().catch(() => '')
+      throw new ApiError(res.status, text)
     }
 
     const data: TokenResponse = await res.json()

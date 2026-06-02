@@ -7,6 +7,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import StockDirection, StockMovementType, StockReferenceType
+from app.exceptions import BusinessRuleError, ConflictError, InsufficientStockError  # noqa: F401 — re-export
 from app.models.inventory import StockCurrent, StockMovement, Warehouse
 from app.models.products import Product
 from app.models.unit_catalog import UnitCatalog
@@ -21,31 +22,19 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class InsufficientStockError(Exception):
-    def __init__(
-        self,
-        product_id: UUID,
-        available: Decimal,
-        requested: Decimal,
-        product_name: str | None = None,
-    ) -> None:
-        self.product_id = product_id
-        self.available = available
-        self.requested = requested
-        self.product_name = product_name
-        super().__init__(
-            f"Stock insuficiente para {product_id}: disponible={available}, solicitado={requested}"
-        )
+class InvalidStockMovementError(BusinessRuleError):
+    def __init__(self, message: str = "Movimiento de stock inválido") -> None:
+        super().__init__(code="invalid_stock_movement", message=message)
 
 
-class InvalidStockMovementError(Exception):
-    pass
-
-
-class InitialInventoryAlreadyAppliedError(Exception):
+class InitialInventoryAlreadyAppliedError(ConflictError):
     def __init__(self, product_id: UUID) -> None:
         self.product_id = product_id
-        super().__init__(f"Ya existen movimientos para el producto {product_id}")
+        super().__init__(
+            code="initial_inventory_applied",
+            message="Ya existen movimientos de stock para este producto",
+            product_id=str(product_id),
+        )
 
 
 # ---------------------------------------------------------------------------

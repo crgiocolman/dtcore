@@ -2,7 +2,6 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -11,13 +10,6 @@ from app.models.products import ProductCategory
 from app.models.users import User
 from app.schemas.categories import CategoryCreate, CategoryOut, CategoryTreeNode, CategoryUpdate
 from app.services import category_service
-from app.services.category_service import (
-    CategoryCycleError,
-    CategoryHasChildrenError,
-    CategoryHasProductsError,
-    CategoryNotFoundError,
-    CategoryParentNotFoundError,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +44,7 @@ async def get_category(
 ):
     category = await category_service.get_category(db, category_id)
     if category is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoría no encontrada")
+        raise category_service.CategoryNotFoundError(category_id)
     return _to_out(category)
 
 
@@ -62,30 +54,9 @@ async def create_category(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    try:
-        category = await category_service.create_category(db, data=body)
-    except CategoryParentNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Categoría padre no encontrada",
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(category)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe una categoría con ese nombre en el mismo nivel",
-        )
-    except Exception:
-        logger.exception("Error al crear categoría")
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al crear categoría",
-        )
+    category = await category_service.create_category(db, data=body)
+    await db.commit()
+    await db.refresh(category)
     return _to_out(category)
 
 
@@ -96,37 +67,9 @@ async def update_category(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    try:
-        category = await category_service.update_category(db, category_id, data=body)
-    except CategoryNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoría no encontrada")
-    except CategoryParentNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Categoría padre no encontrada",
-        )
-    except CategoryCycleError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="La nueva categoría padre crearía un ciclo en la jerarquía",
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(category)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe una categoría con ese nombre en el mismo nivel",
-        )
-    except Exception:
-        logger.exception("Error al actualizar categoría %s", category_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al actualizar categoría",
-        )
+    category = await category_service.update_category(db, category_id, data=body)
+    await db.commit()
+    await db.refresh(category)
     return _to_out(category)
 
 
@@ -136,27 +79,5 @@ async def delete_category(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    try:
-        await category_service.delete_category(db, category_id)
-    except CategoryNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Categoría no encontrada")
-    except CategoryHasChildrenError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No se puede eliminar: la categoría tiene subcategorías. Eliminá las subcategorías primero.",
-        )
-    except CategoryHasProductsError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No se puede eliminar: la categoría tiene productos activos asociados",
-        )
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al eliminar categoría %s", category_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al eliminar categoría",
-        )
+    await category_service.delete_category(db, category_id)
+    await db.commit()

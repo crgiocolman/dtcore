@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.exceptions import ConflictError, DuplicateError, ResourceNotFoundError
 from app.models.products import Product, ProductUnit
 from app.models.unit_catalog import UnitCatalog
 from app.schemas.unit_catalog import UnitCatalogCreate, UnitCatalogUpdate
@@ -12,20 +13,25 @@ from app.schemas.unit_catalog import UnitCatalogCreate, UnitCatalogUpdate
 logger = logging.getLogger(__name__)
 
 
-class UnitCatalogNotFoundError(Exception):
-    pass
+class UnitCatalogNotFoundError(ResourceNotFoundError):
+    def __init__(self, entry_id=None) -> None:
+        super().__init__(entity="Unidad de catálogo", id=entry_id)
 
 
-class UnitCatalogCodeConflictError(Exception):
+class UnitCatalogCodeConflictError(DuplicateError):
     def __init__(self, code: str) -> None:
         self.code = code
-        super().__init__(f"Ya existe una unidad con código '{code}'")
+        super().__init__(entity="unidad", field="código", value=code)
 
 
-class UnitCatalogInUseError(Exception):
+class UnitCatalogInUseError(ConflictError):
     def __init__(self, entry_id: UUID) -> None:
         self.entry_id = entry_id
-        super().__init__(f"La unidad {entry_id} está en uso y no puede eliminarse")
+        super().__init__(
+            code="unit_in_use",
+            message="La unidad está en uso en productos y no puede eliminarse",
+            entry_id=str(entry_id),
+        )
 
 
 async def list_catalog(db: AsyncSession, *, active_only: bool = False) -> list[UnitCatalog]:

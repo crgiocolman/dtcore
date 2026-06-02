@@ -7,6 +7,7 @@ from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import AuditAction
+from app.exceptions import ConflictError, DuplicateError, ResourceNotFoundError
 from app.models.audit import AuditLog
 from app.models.products import Product, ProductUnit
 from app.schemas.products import ProductCreate, ProductUpdate
@@ -14,34 +15,45 @@ from app.schemas.products import ProductCreate, ProductUpdate
 logger = logging.getLogger(__name__)
 
 
-class ProductNotFoundError(Exception):
-    pass
+class ProductNotFoundError(ResourceNotFoundError):
+    def __init__(self, product_id=None) -> None:
+        super().__init__(entity="Producto", id=product_id)
 
 
-class ProductSKUConflictError(Exception):
+class ProductSKUConflictError(DuplicateError):
     def __init__(self, sku: str) -> None:
         self.sku = sku
-        super().__init__(f"Ya existe un producto con SKU {sku}")
+        super().__init__(entity="producto", field="SKU", value=sku)
 
 
-class ProductBarcodeConflictError(Exception):
+class ProductBarcodeConflictError(DuplicateError):
     def __init__(self, barcode: str) -> None:
         self.barcode = barcode
-        super().__init__(f"Ya existe un producto con barcode {barcode}")
+        super().__init__(entity="producto", field="barcode", value=barcode)
 
 
-class SKUConflictOnRestoreError(Exception):
+class SKUConflictOnRestoreError(ConflictError):
     def __init__(self, sku: str, conflicting_product_id: UUID) -> None:
         self.sku = sku
         self.conflicting_product_id = conflicting_product_id
-        super().__init__(f"El SKU {sku} ya está en uso por otro producto activo")
+        super().__init__(
+            code="sku_conflict_on_restore",
+            message=f"El SKU '{sku}' ya está en uso por otro producto activo",
+            conflicting_value=sku,
+            conflicting_product_id=str(conflicting_product_id),
+        )
 
 
-class BarcodeConflictOnRestoreError(Exception):
+class BarcodeConflictOnRestoreError(ConflictError):
     def __init__(self, barcode: str, conflicting_product_id: UUID) -> None:
         self.barcode = barcode
         self.conflicting_product_id = conflicting_product_id
-        super().__init__(f"El barcode {barcode} ya está en uso por otro producto activo")
+        super().__init__(
+            code="barcode_conflict_on_restore",
+            message=f"El barcode '{barcode}' ya está en uso por otro producto activo",
+            conflicting_value=barcode,
+            conflicting_product_id=str(conflicting_product_id),
+        )
 
 
 async def get_product(db: AsyncSession, product_id: UUID) -> Product | None:

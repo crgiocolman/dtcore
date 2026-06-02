@@ -255,10 +255,11 @@ class TestGetSetting:
 
         assert result == Decimal("10")
 
-    async def test_missing_key_raises_key_error(self):
+    async def test_missing_key_raises_not_found(self):
+        from app.services.settings_service import SettingNotFoundError
         db = _db_with_rows([])
 
-        with pytest.raises(KeyError):
+        with pytest.raises(SettingNotFoundError):
             await get_setting(db, "nonexistent_key")
 
 
@@ -297,10 +298,11 @@ class TestSetSetting:
 
         assert _svc._cache is None
 
-    async def test_missing_key_raises_key_error(self):
+    async def test_missing_key_raises_not_found(self):
+        from app.services.settings_service import SettingNotFoundError
         db = _db_with_rows([])
 
-        with pytest.raises(KeyError):
+        with pytest.raises(SettingNotFoundError):
             await set_setting(db, "nonexistent", "value")
 
     async def test_type_mismatch_raises_value_error(self):

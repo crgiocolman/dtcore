@@ -1,12 +1,12 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_role
 from app.database import get_db
 from app.enums import UserRole
+from app.exceptions import ResourceNotFoundError
 from app.models.currencies import Currency, ExchangeRate
 from app.models.users import User
 from app.schemas.currencies import CurrencyOut, CurrencyPatch, ExchangeRateCreate, ExchangeRateOut, ExchangeRatePatch
@@ -59,20 +59,9 @@ async def patch_currency(
 ):
     currency = await currencies_service.toggle_currency(db, code.upper(), body.is_active)
     if currency is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Moneda '{code}' no encontrada",
-        )
-    try:
-        await db.commit()
-        await db.refresh(currency)
-    except Exception:
-        logger.exception("Error al actualizar moneda %s", code)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al actualizar moneda",
-        )
+        raise ResourceNotFoundError(entity=f"Moneda '{code}'")
+    await db.commit()
+    await db.refresh(currency)
     return _to_currency_out(currency)
 
 
@@ -103,10 +92,7 @@ async def create_rate(
 ):
     currency = await currencies_service.get_currency(db, code.upper())
     if currency is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Moneda '{code}' no encontrada",
-        )
+        raise ResourceNotFoundError(entity=f"Moneda '{code}'")
 
     rate = await currencies_service.create_exchange_rate(
         db,
@@ -117,22 +103,6 @@ async def create_rate(
         notes=body.notes,
         user_id=current_user.id,
     )
-
-    try:
-        await db.commit()
-        await db.refresh(rate)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe un tipo de cambio para esta moneda en esa fecha",
-        )
-    except Exception:
-        logger.exception("Error al crear tipo de cambio para %s", code)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al guardar tipo de cambio",
-        )
-
+    await db.commit()
+    await db.refresh(rate)
     return _to_rate_out(rate)

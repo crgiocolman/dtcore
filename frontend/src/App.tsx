@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { Placeholder } from './components/Placeholder'
 import { RequireAuth } from './components/RequireAuth'
+import { ToastContainer } from './components/Toast'
 import { Categories } from './features/admin/pages/Categories'
 import { Currencies } from './features/admin/pages/Currencies'
 import { Settings } from './features/admin/pages/Settings'
@@ -32,6 +33,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <ToastContainer />
       <Routes>
         <Route path="/login" element={<Login />} />
 

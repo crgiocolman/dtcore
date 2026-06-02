@@ -871,51 +871,94 @@ Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, bo
 ### Bloque 7.1 — Tests del backend
 
 ```
-Implementar bloque 7.1 siguiendo docs/roadmap.md y CLAUDE.md.
+Implementar bloque 7.1 — tests del backend, foco crítico.
 
-CONFIGURACIÓN DE TESTS:
-- pytest con pytest-asyncio y httpx para tests de API
-- BD de tests separada: usar DATABASE_URL_TEST en .env.test
-- Fixture session-scoped que crea la BD de tests al inicio y la borra al final
-- Fixture function-scoped con transacción + rollback por test
-- pytest.ini con asyncio_mode = auto
+PRINCIPIO: foco en caminos críticos del negocio, NO en cobertura amplia.
+~20 tests bien hechos valen más que 100 tests diluidos.
 
-SERVICES A CUBRIR (orden de prioridad):
-1. stock_service: apply_movement (CPP correcto con compras múltiples, lock
-   pesimista con asyncio.gather, stock negativo según setting, casos edge
-   qty+nueva=0); apply_initial_inventory (rechaza productos con movements
-   previos, ordena por product_id); recalculate_stock_current (consistencia
-   ledger vs cache)
-2. purchase_service: confirm (movements correctos, CPP actualizado, audit log),
-   cancel (compensación sin recalcular CPP), no se puede confirmar dos veces,
-   compra en USD aplica conversión correcta
-3. sale_service: confirm (lock, snapshot de costo, validación de stock,
-   suma de payments=total, requires_customer setting), cancel (compensación),
-   pagos mixtos
-4. adjustment_service: confirm (movements según direction), cancel (compensación),
-   manejo de cancel cuando original era OUT sin costo
-5. price_service: precio vigente con múltiples cambios, rechazo de fechas
-   anteriores al último
-6. report_service: cada función con datos seed que cubra ventas multimoneda,
-   cancelaciones, casos vacíos, y los bugs encontrados durante QA cruzado
-   (si los hay)
-7. settings_service: parseo de cada value_type, cache invalidation
+SETUP MÍNIMO:
 
-REGRESIONES BASADAS EN QA REAL:
-Agregar al menos un test por cada bug encontrado durante QA de Fase 6
-(QA cruzado contra BD). Documentar en docstring del test "Reproduce bug
-encontrado en QA de Fase 6: ..." para trazabilidad.
+1. Crear .env.test con DATABASE_URL_TEST=postgresql+asyncpg://...@localhost:5432/dtcore_test
+2. Documentar en README de tests cómo crear la BD: createdb dtcore_test (o vía pgAdmin)
+3. Configurar pytest + pytest-asyncio en pyproject.toml o pytest.ini con asyncio_mode = auto
+4. Crear app/tests/conftest.py con:
+   - Fixture session-scoped que aplica migraciones a dtcore_test al inicio
+   - Fixture function-scoped que abre transacción, yield session, hace rollback
+   - Fixture para crear un usuario admin de pruebas (necesario para audit logs)
+   - Fixture para crear un producto/warehouse/contact de pruebas reutilizable
 
-COVERAGE:
-- Objetivo: ≥80% en services
-- Ignorar: routers (cobertura indirecta vía tests de integración cuando
-  se hagan), schemas (son declarativos), modelos
-- Generar reporte con pytest --cov=app.services --cov-report=html
+TESTS OBLIGATORIOS (~15-25 tests, agrupados por archivo):
 
-DOCUMENTAR EN docs/comandos.md:
-- Cómo correr tests localmente
+app/tests/services/test_stock_service.py:
+- test_apply_movement_cpp_two_purchases_same_product: dos compras del mismo
+  producto con costos distintos calculan CPP correcto según fórmula
+- test_apply_movement_cpp_with_fractional_quantity: cantidades NUMERIC con
+  decimales (ej. 0.350 kg) calculan CPP exactamente, sin pérdida de precisión
+- test_apply_movement_blocks_negative_stock_when_disabled: setting
+  allow_negative_stock=false + venta que excede → InsufficientStockError
+- test_apply_movement_allows_negative_stock_when_enabled: setting=true +
+  venta que excede → se aplica, stock_current.quantity_base queda negativo
+- test_apply_movement_concurrent_with_lock: asyncio.gather() con dos
+  apply_movement concurrentes sobre el mismo producto; resultado final
+  consistente (sin race condition)
+
+app/tests/services/test_purchase_service.py:
+- test_confirm_purchase_updates_stock_and_cpp: confirm aplica movements
+  in para cada item, stock_current.quantity_base y avg_cost_base reflejan
+  los cambios
+- test_confirm_purchase_usd_applies_exchange_rate: compra en USD con
+  exchange_rate=7400; unit_cost_base_currency en items = unit_cost * 7400
+- test_confirm_purchase_twice_fails: confirm sobre purchase ya confirmed →
+  InvalidPurchaseStateError
+- test_cancel_purchase_generates_compensating_movements: cancel sobre
+  confirmed crea movements return_out por cada item, stock vuelve al estado
+  previo, avg_cost_base NO se recalcula
+
+app/tests/services/test_sale_service.py:
+- test_confirm_sale_decrements_stock_with_lock: confirm aplica movement out,
+  stock_current.quantity_base baja, lock pesimista garantiza consistencia
+- test_confirm_sale_snapshots_cost: sale_items.unit_cost_base_at_sale
+  captura el avg_cost_base vigente al momento de confirmar; cambios
+  posteriores en CPP no afectan el snapshot
+- test_confirm_sale_validates_payments_sum: sum(sale_payments.amount) !=
+  sales.total → error de validación
+- test_cancel_sale_restores_stock: cancel sobre confirmed crea movements
+  return_in, stock_current vuelve al estado previo
+
+TESTS DE REGRESIÓN:
+Revisar HANDOFF.md y design-decisions.md para identificar bugs encontrados
+durante QA de Fases 4, 5 y 6. Crear un test por cada uno con docstring:
+
+\"\"\"Reproduce bug encontrado en QA Fase X: [descripción breve]\"\"\"
+
+Ejemplos esperables (verificar contra HANDOFF):
+- UUID serializable en audit_log JSONB
+- Stock insuficiente devuelve 422 con código estructurado (no 500)
+- page_size límite máximo respetado
+- Restore de producto detecta conflicto de SKU/barcode
+
+NO HACER:
+- NO tests para settings_service, price_service, adjustment_service,
+  report_service (cobertura por QA manual ya hecha + son código trivial
+  o queries SQL directas)
+- NO tests de routers (cobertura indirecta vía smoke test de deployment)
+- NO objetivo de coverage. Si Claude Code sugiere "agregar más para llegar
+  al X%", rechazar.
+
+DOCUMENTAR en docs/comandos.md sección "Testing":
 - Cómo crear la BD de tests
-- Cómo interpretar el coverage report
+- Cómo correr todos los tests: pytest
+- Cómo correr un archivo: pytest app/tests/services/test_stock_service.py
+- Cómo correr un test específico: pytest -k "test_apply_movement_cpp"
+- Verbose: pytest -v
+
+VERIFICACIÓN AL FINAL:
+- Todos los tests pasan localmente
+- Reportar cantidad total de tests creados
+- Listar bugs de QA convertidos en tests de regresión
+- NO ejecutar pytest --cov; no es objetivo de este bloque
+
+Plan mode obligatorio.
 ```
 
 ### Bloque 7.2 — Manejo de errores y validaciones finales

@@ -3,7 +3,7 @@ import math
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,17 +23,6 @@ from app.schemas.purchases import (
     PurchaseUpdate,
 )
 from app.services import purchase_service
-from app.services.purchase_service import (
-    CurrencyNotValidError,
-    InvalidPurchaseStateError,
-    ProductNotFoundError,
-    ProductUnitNotActiveError,
-    ProductUnitNotFoundError,
-    PurchaseHasNoItemsError,
-    PurchaseNotFoundError,
-    SupplierNotValidError,
-    WarehouseNotFoundError,
-)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -123,27 +112,9 @@ async def create_purchase(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        purchase = await purchase_service.create_purchase(db, data=body, user_id=current_user.id)
-    except SupplierNotValidError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "supplier_not_valid", "supplier_id": str(e.supplier_id)})
-    except CurrencyNotValidError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "currency_not_valid", "currency_code": e.currency_code})
-    except WarehouseNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "warehouse_not_found", "warehouse_id": str(e.warehouse_id)})
-
-    try:
-        await db.commit()
-        await db.refresh(purchase)
-    except Exception:
-        logger.exception("Error al crear compra %s", body.id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al crear compra")
-
+    purchase = await purchase_service.create_purchase(db, data=body, user_id=current_user.id)
+    await db.commit()
+    await db.refresh(purchase)
     return _purchase_to_out(purchase, [], None)
 
 
@@ -153,10 +124,7 @@ async def get_purchase(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    try:
-        purchase, items, supplier_name = await purchase_service.get_purchase(db, purchase_id)
-    except PurchaseNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Compra no encontrada")
+    purchase, items, supplier_name = await purchase_service.get_purchase(db, purchase_id)
     return _purchase_to_out(purchase, items, supplier_name)
 
 
@@ -167,34 +135,11 @@ async def update_purchase(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        purchase = await purchase_service.update_purchase(
-            db, purchase_id=purchase_id, data=body, user_id=current_user.id
-        )
-    except PurchaseNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Compra no encontrada")
-    except InvalidPurchaseStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-    except SupplierNotValidError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "supplier_not_valid", "supplier_id": str(e.supplier_id)})
-    except CurrencyNotValidError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "currency_not_valid", "currency_code": e.currency_code})
-    except WarehouseNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "warehouse_not_found", "warehouse_id": str(e.warehouse_id)})
-
-    try:
-        await db.commit()
-        await db.refresh(purchase)
-    except Exception:
-        logger.exception("Error al actualizar compra %s", purchase_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al actualizar compra")
-
+    purchase = await purchase_service.update_purchase(
+        db, purchase_id=purchase_id, data=body, user_id=current_user.id
+    )
+    await db.commit()
+    await db.refresh(purchase)
     items = (await purchase_service.get_purchase(db, purchase_id))[1]
     return _purchase_to_out(purchase, items, None)
 
@@ -205,21 +150,8 @@ async def delete_purchase(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        await purchase_service.delete_purchase(db, purchase_id=purchase_id, user_id=current_user.id)
-    except PurchaseNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Compra no encontrada")
-    except InvalidPurchaseStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al eliminar compra %s", purchase_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al eliminar compra")
+    await purchase_service.delete_purchase(db, purchase_id=purchase_id, user_id=current_user.id)
+    await db.commit()
 
 
 @router.post("/{purchase_id}/items", response_model=PurchaseItemOut, status_code=status.HTTP_201_CREATED)
@@ -229,37 +161,11 @@ async def add_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        item = await purchase_service.add_item(
-            db, purchase_id=purchase_id, data=body, user_id=current_user.id
-        )
-    except PurchaseNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Compra no encontrada")
-    except InvalidPurchaseStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-    except ProductNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "product_not_found", "product_id": str(e.product_id)})
-    except ProductUnitNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "product_unit_not_found", "unit_id": str(e.unit_id)})
-    except ProductUnitNotActiveError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "product_unit_not_active", "unit_id": str(e.unit_id)})
-
-    try:
-        await db.commit()
-        await db.refresh(item)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Conflicto al agregar item")
-    except Exception:
-        logger.exception("Error al agregar item a compra %s", purchase_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al agregar item")
-
+    item = await purchase_service.add_item(
+        db, purchase_id=purchase_id, data=body, user_id=current_user.id
+    )
+    await db.commit()
+    await db.refresh(item)
     return _item_to_out(item)
 
 
@@ -271,25 +177,11 @@ async def update_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        item = await purchase_service.update_item(
-            db, purchase_id=purchase_id, item_id=item_id, data=body, user_id=current_user.id
-        )
-    except PurchaseNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Compra o item no encontrado")
-    except InvalidPurchaseStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-
-    try:
-        await db.commit()
-        await db.refresh(item)
-    except Exception:
-        logger.exception("Error al actualizar item %s", item_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al actualizar item")
-
+    item = await purchase_service.update_item(
+        db, purchase_id=purchase_id, item_id=item_id, data=body, user_id=current_user.id
+    )
+    await db.commit()
+    await db.refresh(item)
     return _item_to_out(item)
 
 
@@ -300,23 +192,10 @@ async def remove_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        await purchase_service.remove_item(
-            db, purchase_id=purchase_id, item_id=item_id, user_id=current_user.id
-        )
-    except PurchaseNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Compra o item no encontrado")
-    except InvalidPurchaseStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al eliminar item %s", item_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al eliminar item")
+    await purchase_service.remove_item(
+        db, purchase_id=purchase_id, item_id=item_id, user_id=current_user.id
+    )
+    await db.commit()
 
 
 @router.post("/{purchase_id}/confirm", response_model=PurchaseOut)
@@ -325,41 +204,20 @@ async def confirm_purchase(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        purchase = await purchase_service.confirm_purchase(
-            db, purchase_id=purchase_id, user_id=current_user.id
-        )
-    except PurchaseNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Compra no encontrada")
-    except InvalidPurchaseStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-    except PurchaseHasNoItemsError:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail={"code": "purchase_has_no_items"})
-
+    purchase = await purchase_service.confirm_purchase(
+        db, purchase_id=purchase_id, user_id=current_user.id
+    )
     try:
         await db.commit()
         await db.refresh(purchase)
     except IntegrityError:
         # Race condition en purchase_number — reintentar una vez
         await db.rollback()
-        try:
-            purchase = await purchase_service.confirm_purchase(
-                db, purchase_id=purchase_id, user_id=current_user.id
-            )
-            await db.commit()
-            await db.refresh(purchase)
-        except Exception:
-            logger.exception("Error al confirmar compra %s (reintento)", purchase_id)
-            await db.rollback()
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                                detail="Error al confirmar compra")
-    except Exception:
-        logger.exception("Error al confirmar compra %s", purchase_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al confirmar compra")
+        purchase = await purchase_service.confirm_purchase(
+            db, purchase_id=purchase_id, user_id=current_user.id
+        )
+        await db.commit()
+        await db.refresh(purchase)
 
     _, items, supplier_name = await purchase_service.get_purchase(db, purchase_id)
     return _purchase_to_out(purchase, items, supplier_name)
@@ -371,10 +229,7 @@ async def get_purchase_audit(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    try:
-        entries = await purchase_service.get_purchase_audit(db, purchase_id)
-    except PurchaseNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Compra no encontrada")
+    entries = await purchase_service.get_purchase_audit(db, purchase_id)
     return [PurchaseAuditEntry(**e) for e in entries]
 
 
@@ -385,24 +240,10 @@ async def cancel_purchase(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        purchase = await purchase_service.cancel_purchase(
-            db, purchase_id=purchase_id, user_id=current_user.id, reason=body.reason
-        )
-    except PurchaseNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Compra no encontrada")
-    except InvalidPurchaseStateError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail={"code": "invalid_state", "status": e.current_status.value})
-
-    try:
-        await db.commit()
-        await db.refresh(purchase)
-    except Exception:
-        logger.exception("Error al cancelar compra %s", purchase_id)
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error al cancelar compra")
-
+    purchase = await purchase_service.cancel_purchase(
+        db, purchase_id=purchase_id, user_id=current_user.id, reason=body.reason
+    )
+    await db.commit()
+    await db.refresh(purchase)
     _, items, supplier_name = await purchase_service.get_purchase(db, purchase_id)
     return _purchase_to_out(purchase, items, supplier_name)

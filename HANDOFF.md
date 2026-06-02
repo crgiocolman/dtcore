@@ -57,7 +57,23 @@ BACKUP_DRIVE_REMOTE_PATH=<configurar al desplegar>
 
 ## Próximo paso concreto
 
-**Bloque 7.1 — Tests del backend.** pytest con pytest-asyncio; fixtures con BD de tests separada y rollback por test; foco en `stock_service` (lock, CPP, movements), `purchase_service` (confirm/cancel), `sale_service` (confirm/cancel, stock negativo, pagos mixtos); cobertura objetivo ≥80% en services.
+**Bloque 7.1 — Tests del backend (foco crítico).** Setup mínimo: BD de tests `dtcore_test`, conftest con fixture de rollback por test. ~15-25 tests sobre caminos críticos del negocio:
+
+- `stock_service.apply_movement`: CPP con compras múltiples, CPP con cantidades fraccionales (NUMERIC), lock pesimista con `asyncio.gather`, stock negativo bloqueado/permitido según setting
+- `purchase_service`: confirm actualiza stock y CPP, compra en USD aplica conversión, no se confirma dos veces, cancel genera compensación sin recalcular CPP
+- `sale_service`: confirm descuenta stock con lock y snapshot de costo, validación de `sum(payments) == total`, cancel restaura stock
+
+**Tests de regresión obligatorios** (uno por cada bug confirmado durante QA — docstring referencia el bug):
+
+- UUID no serializable en `audit_log.changes` (Fase 3) — verificar que cambios en campos UUID auditados se persisten correctamente
+- Editar producto eliminado falla con conflicto de SKU (Fase 3) — restore valida que no exista activo con el mismo SKU/barcode y devuelve 409 estructurado
+- Toggle "Mostrar inactivos" en productos consulta `deleted_at != NULL` (Fase 3) — la query incluye eliminados solo cuando se pide explícitamente
+- `page_size > 100` devuelve 422 (Fase 4.6) — verificar que el endpoint de productos acepta hasta 500
+- Stock insuficiente devuelve 422 con `{code, product_id, available, requested, product_name}` estructurado, no 500 (Fases 5 y 6) — aplica a ventas y a confirm de ajustes
+- Modal "Confirmar compra" tras éxito (Fase 4.4) — verificar que el endpoint devuelve 200 con cuerpo consistente, no estados ambiguos que dejen colgada la UI
+- IVA por ítem se persiste como snapshot (Fase 4.4) — `purchase_items.tax_rate` guarda el valor del momento, inmutable después
+
+**Sin tests** para `settings_service`, `price_service`, `adjustment_service`, `report_service` — cubiertos por QA manual y QA cruzado contra BD. **Sin objetivo de coverage numérico** — foco en caminos críticos. Documentar comandos de ejecución en `docs/comandos.md`.
 
 ---
 

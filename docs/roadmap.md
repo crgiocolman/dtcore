@@ -347,21 +347,32 @@ items`
 
 **Objetivo:** preparar el sistema para uso productivo en el local del cliente.
 
+**Orden de ejecución recomendado:**
+
+1. **7.2** primero — endurecer manejo de errores y códigos HTTP antes de testear, evita reescribir tests sobre comportamiento que va a cambiar.
+2. **7.3 y 7.4** paralelizables — son frontend, no afectan tests de backend.
+3. **7.1** después de 7.2 — tests sobre el comportamiento final, no sobre código intermedio.
+4. **7.5 y 7.5b** — deployment, después de tener tests verdes.
+5. **7.6** durante deployment — carga inicial del cliente.
+6. **7.7** última semana antes de entrega — capacitación con sistema estable.
+7. **7.8** post-entrega — soporte y acompañamiento.
+
+La numeración refleja agrupación lógica (tests, errores, UI, deployment, gente), no secuencia temporal.
+
 **Bloques:**
 
-- **7.1 — Tests del backend**
-  - Configuración de pytest con BD de tests separada (`DATABASE_URL_TEST`), fixture session-scoped que la crea/destruye, fixture function-scoped con rollback por test
-  - Tests unitarios de services críticos:
-    - `stock_service`: CPP, lock pesimista, stock negativo según setting, casos edge, recalculate
-    - `purchase_service`: confirm/cancel, compra en USD con conversión, no se puede confirmar dos veces
-    - `sale_service`: confirm/cancel, pagos mixtos, snapshot de costo, validación de stock
-    - `adjustment_service`: confirm/cancel, manejo de cancel cuando original era OUT sin costo
-    - `price_service`: precio vigente con múltiples cambios, rechazo de fechas anteriores
-    - `report_service`: cada función con datos seed multimoneda, cancelaciones, casos vacíos
-    - `settings_service`: parseo de cada value_type, cache invalidation
-  - Regresiones de QA: al menos un test por cada bug encontrado en QA cruzado de Fase 6, con docstring que referencie el bug
-  - Coverage objetivo: ≥80% en services (routers y schemas ignorados)
-  - Documentar setup y comandos en `docs/comandos.md`
+- **7.1 — Tests del backend (foco crítico)**
+  - Setup mínimo: BD de tests `dtcore_test`, conftest con fixture de rollback por test
+  - Tests obligatorios (caminos críticos del negocio):
+    - `stock_service.apply_movement`: CPP correcto con compras múltiples del mismo producto, lock pesimista con `asyncio.gather`, stock negativo bloqueado/permitido según setting `allow_negative_stock`
+    - `purchase_service.confirm`: cambia stock y CPP correctamente, compra en USD aplica conversión, no se confirma dos veces
+    - `purchase_service.cancel`: genera movements compensatorios, CPP no se recalcula hacia atrás
+    - `sale_service.confirm`: descuenta stock con lock, snapshot de costo correcto, valida `sum(payments) == total`
+    - `sale_service.cancel`: devuelve stock
+  - Tests de regresión: uno por cada bug encontrado durante QA real (Fases 4, 5 y 6), con docstring que referencie el bug
+  - SIN tests para: settings, prices, adjustments, reports (cubiertos por QA manual o son código trivial)
+  - SIN objetivo numérico de coverage. Foco en caminos críticos del negocio
+  - Documentar comandos de ejecución en `docs/comandos.md`
 
 - **7.2 — Manejo de errores y validaciones finales**
   - Auditoría sistemática: cada endpoint debe devolver código HTTP correcto y body estructurado (`{code, message, ...detalle}`), no solo `{detail: "Error"}`

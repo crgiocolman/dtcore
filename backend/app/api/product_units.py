@@ -2,36 +2,27 @@ import logging
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
+from app.exceptions import ResourceNotFoundError
 from app.models.unit_catalog import UnitCatalog
 from app.models.users import User
 from app.schemas.product_units import ProductUnitCreate, ProductUnitOut, ProductUnitUpdate
 from app.schemas.unit_catalog import UnitCatalogOut
 from app.services import product_service, product_unit_service
-from app.services.product_unit_service import (
-    ProductUnitBaseUnitDeleteError,
-    ProductUnitBaseUnitToggleError,
-    ProductUnitCatalogConflictError,
-    ProductUnitFactorImmutableError,
-    ProductUnitHasReferencesError,
-    ProductUnitNoDefaultError,
-    ProductUnitNotFoundError,
-)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-async def _get_product_or_404(product_id: UUID, db: AsyncSession):
+async def _get_product_or_404(product_id: UUID, db):
     product = await product_service.get_product(db, product_id)
     if product is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
+        raise ResourceNotFoundError(entity="Producto", id=product_id)
     return product
 
 
@@ -85,36 +76,9 @@ async def create_unit(
     _: User = Depends(get_current_user),
 ):
     await _get_product_or_404(product_id, db)
-
-    try:
-        unit = await product_unit_service.create_unit(db, product_id, data=body)
-    except ProductUnitCatalogConflictError as e:
-        state = "inactiva" if not e.existing_is_active else "activa"
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "exists_inactive" if not e.existing_is_active else "exists_active",
-                "message": f"Ya existe una unidad {state} con ese tipo para este producto",
-                "unit_id": str(e.existing_id),
-            },
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(unit)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe una unidad con esa entrada de catálogo para este producto",
-        )
-    except Exception:
-        logger.exception("Error al crear unidad para producto %s", product_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al crear unidad",
-        )
+    unit = await product_unit_service.create_unit(db, product_id, data=body)
+    await db.commit()
+    await db.refresh(unit)
     catalog = await db.get(UnitCatalog, unit.unit_catalog_id)
     return _to_out(unit, catalog, can_hard_delete=True)
 
@@ -128,38 +92,9 @@ async def update_unit(
     _: User = Depends(get_current_user),
 ):
     await _get_product_or_404(product_id, db)
-
-    try:
-        unit = await product_unit_service.update_unit(db, product_id, unit_id, data=body)
-    except ProductUnitNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unidad no encontrada")
-    except ProductUnitFactorImmutableError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="El factor de conversión no puede modificarse: la unidad ya tiene movimientos o precios asociados",
-        )
-    except ProductUnitNoDefaultError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="La unidad base debe mantener al menos una unidad de venta o compra predeterminada",
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(unit)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe una unidad con esa entrada de catálogo para este producto",
-        )
-    except Exception:
-        logger.exception("Error al actualizar unidad %s", unit_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al actualizar unidad",
-        )
+    unit = await product_unit_service.update_unit(db, product_id, unit_id, data=body)
+    await db.commit()
+    await db.refresh(unit)
     catalog = await db.get(UnitCatalog, unit.unit_catalog_id)
     has_refs = await product_unit_service._has_references(db, unit.id)
     return _to_out(unit, catalog, can_hard_delete=not has_refs and unit.factor_to_base != Decimal("1"))
@@ -173,27 +108,9 @@ async def toggle_unit_active(
     _: User = Depends(get_current_user),
 ):
     await _get_product_or_404(product_id, db)
-
-    try:
-        unit = await product_unit_service.toggle_active(db, product_id, unit_id)
-    except ProductUnitNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unidad no encontrada")
-    except ProductUnitBaseUnitToggleError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No se puede inactivar la unidad base (factor_to_base = 1)",
-        )
-
-    try:
-        await db.commit()
-        await db.refresh(unit)
-    except Exception:
-        logger.exception("Error al cambiar estado de unidad %s", unit_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al cambiar estado de unidad",
-        )
+    unit = await product_unit_service.toggle_active(db, product_id, unit_id)
+    await db.commit()
+    await db.refresh(unit)
     catalog = await db.get(UnitCatalog, unit.unit_catalog_id)
     has_refs = await product_unit_service._has_references(db, unit.id)
     return _to_out(unit, catalog, can_hard_delete=not has_refs and unit.factor_to_base != Decimal("1"))
@@ -207,28 +124,5 @@ async def delete_unit(
     _: User = Depends(get_current_user),
 ):
     await _get_product_or_404(product_id, db)
-
-    try:
-        await product_unit_service.delete_unit(db, product_id, unit_id)
-    except ProductUnitNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unidad no encontrada")
-    except ProductUnitBaseUnitDeleteError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No se puede eliminar la unidad base (factor_to_base = 1)",
-        )
-    except ProductUnitHasReferencesError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No se puede eliminar: la unidad tiene movimientos o precios asociados. Inactivala en su lugar.",
-        )
-
-    try:
-        await db.commit()
-    except Exception:
-        logger.exception("Error al eliminar unidad %s", unit_id)
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al eliminar unidad",
-        )
+    await product_unit_service.delete_unit(db, product_id, unit_id)
+    await db.commit()
