@@ -2,13 +2,13 @@
 
 Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de una pausa.
 
-**Última actualización:** 2026-06-02 — Fase 6 cerrada (ajustes de stock + reportes + dashboard).
+**Última actualización:** 2026-06-03 — Bloque 6.6 completo (inventario operativo).
 
 ---
 
 ## Fase actual
 
-**Fase 7 en progreso.** Bloque 7.2 (manejo de errores) completo. Próximo: **7.1 — Tests del backend (foco crítico)**.
+**Fase 7 en progreso.** Bloques 7.2 (manejo de errores) y 6.6 (inventario) completos. Próximo: **7.1 — Tests del backend (foco crítico)**.
 
 ---
 

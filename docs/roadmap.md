@@ -435,7 +435,7 @@ La numeración refleja agrupación lógica (tests, errores, UI, deployment, gent
   - Procedimiento de actualizaciones (`git pull` + migraciones + reinicio + smoke test reducido)
 
 - **7.5b — Deployment nativo en Windows (sin Docker)**
-  - Documento `docs/deployment.md` sección B: instalación nativa para clientes sin virtualización o con PCs de bajos recursos
+  - Documento `docs/deployment_windows.md`: instalación nativa para clientes sin virtualización o con PCs de bajos recursos
   - Instalación de Python 3.12+, Node 20+, PostgreSQL 16 nativo, Git
   - Setup de PostgreSQL nativo (usuario, BD, password)
   - Backend con venv + uvicorn; frontend con `npm run build` + `serve`

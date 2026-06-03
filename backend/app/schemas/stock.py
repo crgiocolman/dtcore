@@ -38,6 +38,8 @@ class StockSummaryItem(BaseModel):
     base_unit_symbol: str | None
     last_movement_at: datetime | None
     is_low_stock: bool
+    category_id: UUID | None = None
+    category_name: str | None = None
 
 
 class StockSummaryOut(BaseModel):

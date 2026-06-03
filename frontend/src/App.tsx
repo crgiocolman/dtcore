@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
-import { Placeholder } from './components/Placeholder'
 import { RequireAuth } from './components/RequireAuth'
 import { ToastContainer } from './components/Toast'
 import { Categories } from './features/admin/pages/Categories'
@@ -18,6 +17,8 @@ import { ProductsList } from './features/products/pages/ProductsList'
 import { AdjustmentForm } from './features/adjustments/pages/AdjustmentForm'
 import { AdjustmentsList } from './features/adjustments/pages/AdjustmentsList'
 import { Home } from './features/dashboard/pages/Home'
+import { InventoryList } from './features/inventory/pages/InventoryList'
+import { ProductKardex } from './features/inventory/pages/ProductKardex'
 import { Reports } from './features/reports/pages/Reports'
 import { PurchaseForm } from './features/purchases/pages/PurchaseForm'
 import { PurchasesList } from './features/purchases/pages/PurchasesList'
@@ -62,7 +63,8 @@ export default function App() {
           <Route path="ajustes" element={<AdjustmentsList />} />
           <Route path="ajustes/nuevo" element={<AdjustmentForm />} />
           <Route path="ajustes/:id" element={<AdjustmentForm />} />
-          <Route path="inventario" element={<Placeholder title="Inventario" />} />
+          <Route path="inventario" element={<InventoryList />} />
+          <Route path="inventario/:product_id" element={<ProductKardex />} />
           <Route path="reportes" element={<Reports />} />
           <Route path="admin/settings" element={<Settings />} />
           <Route path="admin/currencies" element={<Currencies />} />

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.enums import StockDirection, StockMovementType, StockReferenceType
 from app.exceptions import BusinessRuleError, ConflictError, InsufficientStockError  # noqa: F401 — re-export
 from app.models.inventory import StockCurrent, StockMovement, Warehouse
-from app.models.products import Product
+from app.models.products import Product, ProductCategory
 from app.models.unit_catalog import UnitCatalog
 from app.schemas.stock import InitialInventoryItemIn, StockMovementOut, StockSummaryItem
 from app.services import settings_service
@@ -156,10 +156,17 @@ async def get_stock_summary(
     *,
     warehouse_id: UUID | None = None,
     search: str | None = None,
+    category_id: UUID | None = None,
     low_stock_only: bool = False,
+    with_stock_only: bool = False,
+    sort_by: str = "product_name",
+    sort_dir: str = "asc",
     page: int = 1,
     page_size: int = 50,
 ) -> tuple[list[StockSummaryItem], int]:
+    default_t_str = await settings_service.get_setting(db, "low_stock_default_threshold")
+    default_threshold = Decimal(str(default_t_str or "5"))
+
     base = (
         select(
             StockCurrent.product_id,
@@ -172,10 +179,13 @@ async def get_stock_summary(
             Product.low_stock_threshold,
             Warehouse.name.label("warehouse_name"),
             UnitCatalog.symbol.label("base_unit_symbol"),
+            ProductCategory.id.label("category_id"),
+            ProductCategory.name.label("category_name"),
         )
         .join(Product, StockCurrent.product_id == Product.id)
         .join(Warehouse, StockCurrent.warehouse_id == Warehouse.id)
         .outerjoin(UnitCatalog, Product.base_unit_id == UnitCatalog.id)
+        .outerjoin(ProductCategory, Product.category_id == ProductCategory.id)
         .where(
             Product.deleted_at.is_(None),
             Warehouse.deleted_at.is_(None),
@@ -194,20 +204,34 @@ async def get_stock_summary(
             )
         )
 
+    if category_id is not None:
+        base = base.where(Product.category_id == category_id)
+
+    if with_stock_only:
+        base = base.where(StockCurrent.quantity_base > 0)
+
     if low_stock_only:
-        default_t_str = await settings_service.get_setting(db, "low_stock_default_threshold")
-        default_t = Decimal(str(default_t_str or "5"))
-        effective_t = func.coalesce(Product.low_stock_threshold, default_t)
+        effective_t = func.coalesce(Product.low_stock_threshold, default_threshold)
         base = base.where(StockCurrent.quantity_base <= effective_t)
+
+    _sort_map = {
+        "product_name": Product.name,
+        "product_sku": Product.sku,
+        "quantity_base": StockCurrent.quantity_base,
+        "avg_cost_base": StockCurrent.avg_cost_base,
+        "last_movement_at": StockCurrent.last_movement_at,
+        "category_name": ProductCategory.name,
+        "total_value": StockCurrent.quantity_base * StockCurrent.avg_cost_base,
+    }
+    sort_col = _sort_map.get(sort_by, Product.name)
+    base = base.order_by(sort_col.desc() if sort_dir == "desc" else sort_col.asc())
 
     total = (
         await db.execute(select(func.count()).select_from(base.subquery()))
     ).scalar_one()
 
     rows = (
-        await db.execute(
-            base.order_by(Product.name).offset((page - 1) * page_size).limit(page_size)
-        )
+        await db.execute(base.offset((page - 1) * page_size).limit(page_size))
     ).all()
 
     items = [
@@ -222,9 +246,14 @@ async def get_stock_summary(
             base_unit_symbol=row.base_unit_symbol,
             last_movement_at=row.last_movement_at,
             is_low_stock=(
-                row.low_stock_threshold is not None
-                and row.quantity_base <= row.low_stock_threshold
+                row.quantity_base <= (
+                    row.low_stock_threshold
+                    if row.low_stock_threshold is not None
+                    else default_threshold
+                )
             ),
+            category_id=row.category_id,
+            category_name=row.category_name,
         )
         for row in rows
     ]

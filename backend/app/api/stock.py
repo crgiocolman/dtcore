@@ -29,7 +29,11 @@ router = APIRouter()
 async def list_stock(
     warehouse_id: UUID | None = Query(None),
     search: str | None = Query(None),
+    category_id: UUID | None = Query(None),
     low_stock_only: bool = Query(False),
+    with_stock_only: bool = Query(False),
+    sort_by: str = Query("product_name"),
+    sort_dir: str = Query("asc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
@@ -39,7 +43,11 @@ async def list_stock(
         db,
         warehouse_id=warehouse_id,
         search=search,
+        category_id=category_id,
         low_stock_only=low_stock_only,
+        with_stock_only=with_stock_only,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
         page=page,
         page_size=page_size,
     )
