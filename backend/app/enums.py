@@ -55,6 +55,7 @@ class StockReferenceType(str, Enum):
     PURCHASE = "purchase"
     SALE = "sale"
     ADJUSTMENT = "adjustment"
+    INITIAL = "initial"
 
 
 class AdjustmentReason(str, Enum):

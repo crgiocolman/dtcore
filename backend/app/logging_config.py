@@ -4,6 +4,22 @@ import os
 import sys
 
 
+class _SafeTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
+    """TimedRotatingFileHandler que tolera PermissionError en Windows.
+
+    En Windows, uvicorn --reload corre dos procesos (reloader + server) que
+    comparten el mismo archivo de log abierto. os.rename() falla si el otro
+    proceso aún lo tiene abierto; capturamos el error y dejamos que el próximo
+    ciclo lo intente de nuevo.
+    """
+
+    def rotate(self, source: str, dest: str) -> None:
+        try:
+            super().rotate(source, dest)
+        except PermissionError:
+            pass
+
+
 def configure_logging() -> None:
     level_name = os.getenv("LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
@@ -25,11 +41,12 @@ def configure_logging() -> None:
     log_file = os.getenv("LOG_FILE_PATH")
     if log_file:
         os.makedirs(os.path.dirname(os.path.abspath(log_file)), exist_ok=True)
-        file_handler = logging.handlers.TimedRotatingFileHandler(
+        file_handler = _SafeTimedRotatingFileHandler(
             log_file,
             when="midnight",
             backupCount=30,
             encoding="utf-8",
+            delay=True,
         )
         file_handler.setFormatter(formatter)
         root.addHandler(file_handler)

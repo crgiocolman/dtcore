@@ -200,6 +200,8 @@ export function InitialInventory() {
       })
       setRows(cleared)
       setRowErrors({})
+      const ids = await fetchStockedProductIds(warehouse.id)
+      setLockedIds(ids)
     } catch (err) {
       const conflictId = parseConflictProductId(err)
       if (conflictId) {

@@ -112,6 +112,7 @@ class StockMovement(Base):
     direction = Column(_stock_direction_enum, nullable=False)
     quantity_base = Column(Numeric(18, 4), nullable=False)
     unit_cost_base = Column(Numeric(18, 4), nullable=True)
+    previous_avg_cost_base = Column(Numeric(18, 4), nullable=True)
     reference_type = Column(_stock_reference_type_enum, nullable=True)
     reference_id = Column(UUID(as_uuid=True), nullable=True)
     notes = Column(Text, nullable=True)

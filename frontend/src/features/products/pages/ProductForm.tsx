@@ -20,6 +20,7 @@ import {
 import { createPrice, fetchPriceHistory, type PriceOut } from '../api/prices'
 import { fetchCurrencies, type CurrencyOut } from '../../admin/api/currencies'
 import { fetchUnitCatalog, type UnitCatalogOut } from '../../admin/api/unit_catalog'
+import { fetchProductStock, type StockCurrentOut } from '../../admin/api/stock'
 import { parseApiError as _parseErr } from '../../../lib/parseApiError'
 
 // ---- Helpers ----
@@ -50,7 +51,10 @@ function today(): string {
 function formatPrice(value: string, decimals: number): string {
   const n = parseFloat(value)
   if (isNaN(n)) return '—'
-  return new Intl.NumberFormat('es-PY', { maximumFractionDigits: decimals }).format(n)
+  return new Intl.NumberFormat('es-PY', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(n)
 }
 
 // ---- Toggle ----
@@ -655,6 +659,18 @@ export function ProductForm() {
     fetchUnitCatalog(true).then(setUnitCatalog).catch(() => {})
   }, [])
 
+  // Pre-select "Unidad" (code === 'unit') as default base unit in create mode
+  useEffect(() => {
+    if (isEdit || unitCatalog.length === 0) return
+    const defaultUnit = unitCatalog.find((u) => u.code === 'unit')
+    if (defaultUnit) {
+      setForm((p) => p.base_unit_id ? p : { ...p, base_unit_id: defaultUnit.id })
+    }
+  }, [unitCatalog, isEdit])
+
+  // Stock (edit mode only — CPP)
+  const [stockData, setStockData] = useState<StockCurrentOut[] | null>(null)
+
   // Currencies + prices (edit mode only)
   const [currencies, setCurrencies] = useState<CurrencyOut[]>([])
   const [prices, setPrices] = useState<Record<string, PriceOut | null | undefined>>({})
@@ -677,8 +693,10 @@ export function ProductForm() {
         setSavedUnits(units)
         const activeCurrencies = currencyList.filter((c) => c.is_active)
         setCurrencies(activeCurrencies)
-        // Load current price per unit×currency
         loadPrices(id, units, activeCurrencies)
+        if (product.track_stock) {
+          fetchProductStock(id).then(setStockData).catch(() => setStockData([]))
+        }
       })
       .catch((err) => setApiError(parseApiError(err)))
       .finally(() => setLoading(false))
@@ -776,7 +794,7 @@ export function ProductForm() {
             barcode: u.barcode || null,
           })
         }
-        navigate('/productos')
+        navigate(`/productos/${productId}`)
       }
     } catch (err) {
       setApiError(parseApiError(err))
@@ -1214,6 +1232,27 @@ export function ProductForm() {
                 {errors.low_stock_threshold && (
                   <p className="mt-1 text-xs text-danger-500">{errors.low_stock_threshold}</p>
                 )}
+              </div>
+            )}
+
+            {isEdit && form.track_stock && (
+              <div className="max-w-xs">
+                <label className="label">Costo promedio (CPP)</label>
+                <div className="flex h-10 items-center rounded border border-border bg-bg-input px-3 text-sm tabular-nums text-text-secondary">
+                  {stockData === null ? (
+                    <span className="text-text-muted">…</span>
+                  ) : stockData.length === 0 ? (
+                    <span className="text-text-muted">Sin movimientos</span>
+                  ) : (
+                    stockData.map((s, i) => (
+                      <span key={i}>
+                        {i > 0 && <span className="mx-2 text-text-muted">·</span>}
+                        {'₲ ' + new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(parseFloat(s.avg_cost_base))}
+                      </span>
+                    ))
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-text-muted">Solo lectura — calculado por el sistema</p>
               </div>
             )}
           </div>

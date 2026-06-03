@@ -151,3 +151,41 @@ export function fetchSales(params: SaleListParams = {}): Promise<SaleListOut> {
 export function getSale(saleId: string): Promise<SaleOut> {
   return apiFetch<SaleOut>(`/sales/${saleId}`)
 }
+
+// Tipos y función para confirmación directa (atómica) — usada por el POS
+export interface SaleItemDirectIn {
+  id: string
+  product_id: string
+  product_unit_id: string
+  quantity: number
+  unit_price: number
+  discount_amount: number
+  discount_type: DiscountType
+  tax_rate?: number
+}
+
+export interface SalePaymentDirectIn {
+  id: string
+  payment_method: PaymentMethod
+  amount: number
+  reference?: string | null
+}
+
+export interface SaleDirectIn {
+  id: string
+  customer_id?: string | null
+  sale_date: string
+  warehouse_id: string
+  currency_code: string
+  exchange_rate: number
+  notes?: string | null
+  header_discount_amount: number
+  header_discount_type: DiscountType
+  header_discount_percent?: number | null
+  items: SaleItemDirectIn[]
+  payments: SalePaymentDirectIn[]
+}
+
+export function confirmSaleDirect(data: SaleDirectIn): Promise<SaleOut> {
+  return apiFetch<SaleOut>('/sales/direct', { method: 'POST', body: JSON.stringify(data) })
+}

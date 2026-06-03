@@ -700,6 +700,8 @@ class TestCancelPurchase:
         db = _db_with_side_effects([
             _scalar_one_or_none(purchase),
             _scalars_all([item_a, item_b]),
+            _scalar_one_or_none(None),  # primer IN movement pid_a → sin previous
+            _scalar_one_or_none(None),  # primer IN movement pid_b → sin previous
         ])
 
         with patch(
@@ -723,6 +725,7 @@ class TestCancelPurchase:
         db = _db_with_side_effects([
             _scalar_one_or_none(purchase),
             _scalars_all([item]),
+            _scalar_one_or_none(None),  # primer IN movement → sin previous
         ])
 
         with patch("app.services.purchase_service.stock_service.apply_movement", new_callable=AsyncMock) as mock_apply:
@@ -760,6 +763,8 @@ class TestCancelPurchase:
         db = _db_with_side_effects([
             _scalar_one_or_none(purchase),
             _scalars_all(items),
+            _scalar_one_or_none(None),  # primer IN movement pid_1 → sin previous
+            _scalar_one_or_none(None),  # primer IN movement pid_2 → sin previous
         ])
 
         with patch(
@@ -783,6 +788,7 @@ class TestCancelPurchase:
         db = _db_with_side_effects([
             _scalar_one_or_none(purchase),
             _scalars_all([item]),
+            _scalar_one_or_none(None),  # primer IN movement → sin previous
         ])
 
         with patch("app.services.purchase_service.stock_service.apply_movement", new_callable=AsyncMock) as mock_apply:
@@ -791,6 +797,36 @@ class TestCancelPurchase:
 
         audit_calls = [c[0][0] for c in db.add.call_args_list if isinstance(c[0][0], AuditLog)]
         assert any(a.action == AuditAction.CANCEL and a.user_id == uid for a in audit_calls)
+
+    async def test_cancel_purchase_restores_avg_cost_base(self):
+        """Al cancelar, avg_cost_base vuelve al valor previo a la confirmación."""
+        from app.services.purchase_service import cancel_purchase
+        from app.enums import StockDirection
+
+        pid = UUID("00000000-0000-0000-0000-000000000001")
+        purchase = _make_purchase(status=PurchaseStatus.CONFIRMED)
+        item = _make_item(product_id=pid, quantity_base=Decimal("10"))
+
+        # Simular el IN movement original con previous_avg_cost_base = 100
+        orig_movement = MagicMock()
+        orig_movement.previous_avg_cost_base = Decimal("100.0000")
+
+        # Simular stock_current después del RETURN_OUT (qty reducida, avg desactualizado)
+        stock_current = MagicMock()
+        stock_current.avg_cost_base = Decimal("150.0000")
+
+        db = _db_with_side_effects([
+            _scalar_one_or_none(purchase),
+            _scalars_all([item]),
+            _scalar_one_or_none(orig_movement),  # primer IN movement con previous
+            _scalar_one_or_none(stock_current),  # stock_current para restaurar
+        ])
+
+        with patch("app.services.purchase_service.stock_service.apply_movement", new_callable=AsyncMock) as mock_apply:
+            mock_apply.return_value = MagicMock()
+            await cancel_purchase(db, purchase_id=purchase.id, user_id=uuid4(), reason="test")
+
+        assert stock_current.avg_cost_base == Decimal("100.0000")
 
 
 # ---------------------------------------------------------------------------

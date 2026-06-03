@@ -73,7 +73,7 @@ async def sales_by_period(
             func.count().label("sale_count"),
         )
         .where(
-            Sale.status != SaleStatus.CANCELLED.value,
+            Sale.status == SaleStatus.CONFIRMED,
             func.date(Sale.sale_date) >= date_from,
             func.date(Sale.sale_date) <= date_to,
             Sale.deleted_at.is_(None),
@@ -130,7 +130,7 @@ async def top_products(
         .join(Sale, SaleItem.sale_id == Sale.id)
         .join(Product, SaleItem.product_id == Product.id)
         .where(
-            Sale.status != SaleStatus.CANCELLED.value,
+            Sale.status == SaleStatus.CONFIRMED,
             func.date(Sale.sale_date) >= date_from,
             func.date(Sale.sale_date) <= date_to,
             Sale.deleted_at.is_(None),
@@ -192,7 +192,7 @@ async def profit_by_product(
         .join(Sale, SaleItem.sale_id == Sale.id)
         .join(Product, SaleItem.product_id == Product.id)
         .where(
-            Sale.status != SaleStatus.CANCELLED.value,
+            Sale.status == SaleStatus.CONFIRMED,
             func.date(Sale.sale_date) >= date_from,
             func.date(Sale.sale_date) <= date_to,
             Sale.deleted_at.is_(None),

@@ -12,7 +12,7 @@ from app.models.audit import AuditLog
 from app.models.contacts import Contact
 from app.models.users import User
 from app.models.currencies import Currency
-from app.models.inventory import Warehouse
+from app.models.inventory import StockCurrent, StockMovement, Warehouse
 from app.models.products import Product, ProductUnit
 from app.models.purchases import Purchase, PurchaseItem
 from app.schemas.purchases import (
@@ -582,6 +582,26 @@ async def cancel_purchase(
     items = await _get_items(db, purchase_id)
     # Mismo orden anti-deadlock que en confirm
     items_sorted = sorted(items, key=lambda i: i.product_id)
+
+    # Recopilar el PRIMER IN movement de cada producto para restaurar CPP
+    to_restore: dict[UUID, StockMovement] = {}
+    for item in items_sorted:
+        if item.product_id not in to_restore:
+            result = await db.execute(
+                select(StockMovement)
+                .where(
+                    StockMovement.reference_id == purchase_id,
+                    StockMovement.reference_type == StockReferenceType.PURCHASE,
+                    StockMovement.direction == StockDirection.IN,
+                    StockMovement.product_id == item.product_id,
+                )
+                .order_by(StockMovement.created_at.asc())
+                .limit(1)
+            )
+            m = result.scalar_one_or_none()
+            if m is not None and m.previous_avg_cost_base is not None:
+                to_restore[item.product_id] = m
+
     for item in items_sorted:
         await stock_service.apply_movement(
             db,
@@ -595,6 +615,18 @@ async def cancel_purchase(
             reference_id=purchase.id,
             user_id=user_id,
         )
+
+    # Restaurar avg_cost_base al valor previo a la confirmación de compra
+    for product_id, orig_movement in to_restore.items():
+        result = await db.execute(
+            select(StockCurrent).where(
+                StockCurrent.product_id == product_id,
+                StockCurrent.warehouse_id == purchase.warehouse_id,
+            )
+        )
+        current = result.scalar_one_or_none()
+        if current is not None:
+            current.avg_cost_base = orig_movement.previous_avg_cost_base
 
     db.add(AuditLog(
         id=uuid4(),

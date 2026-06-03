@@ -341,6 +341,11 @@ export function PurchaseForm() {
 
   const searchRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const productInputRef = useRef<HTMLInputElement>(null)
+  // Tracks that a product was just selected — blocks the debounce that fires when
+  // productSearch changes to result.name, preventing the dropdown from reopening.
+  // Reset synchronously in onChange before the state update, so the next effect
+  // run (triggered by typing) sees false immediately.
+  const productJustSelected = useRef(false)
 
   // Load reference data on mount
   useEffect(() => {
@@ -401,7 +406,7 @@ export function PurchaseForm() {
 
   // Debounced product search
   useEffect(() => {
-    if (productSearch.length < 2) {
+    if (productSearch.length < 2 || productJustSelected.current) {
       setProductResults([])
       setShowProductDrop(false)
       return
@@ -475,10 +480,12 @@ export function PurchaseForm() {
   }
 
   const handleSelectProduct = async (result: ProductSearchResult) => {
+    productJustSelected.current = true
     setSelectedProduct(result)
     setProductSearch(result.name)
     setShowProductDrop(false)
-    setNewItemTaxRate(result.tax_rate)
+    setProductResults([])
+    setNewItemTaxRate(String(parseFloat(result.tax_rate)))
     const units = await fetchUnits(result.id, true).catch(() => [])
     setProductUnits(units)
     const def = units.find(u => u.is_default_purchase_unit) ?? units[0]
@@ -788,7 +795,7 @@ export function PurchaseForm() {
                       setHeaderField('supplier_id', '')
                       setShowSupplierDrop(true)
                     }}
-                    onFocus={() => setShowSupplierDrop(true)}
+                    onFocus={() => !header.supplier_id && setShowSupplierDrop(true)}
                     onBlur={() => setTimeout(() => setShowSupplierDrop(false), 150)}
                   />
                   {headerErrors.supplier_id && (
@@ -1087,7 +1094,7 @@ export function PurchaseForm() {
                       type="text"
                       placeholder="Buscar producto (SKU, nombre)…"
                       value={productSearch}
-                      onChange={e => { setProductSearch(e.target.value); setSelectedProduct(null) }}
+                      onChange={e => { productJustSelected.current = false; setProductSearch(e.target.value); setSelectedProduct(null) }}
                       onBlur={() => setTimeout(() => setShowProductDrop(false), 150)}
                       onFocus={() => productResults.length > 0 && setShowProductDrop(true)}
                       onKeyDown={onItemInputKeyDown}

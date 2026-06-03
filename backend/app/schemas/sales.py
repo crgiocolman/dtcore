@@ -144,3 +144,37 @@ class SaleAuditEntry(BaseModel):
     user_name: str
     created_at: datetime
     changes: dict | None = None
+
+
+# Schemas para confirmación directa (atómica): crea + agrega items/pagos + confirma en una sola transacción
+class SaleItemDirectIn(BaseModel):
+    id: UUID
+    product_id: UUID
+    product_unit_id: UUID
+    quantity: Decimal
+    unit_price: Decimal
+    discount_amount: Decimal = Decimal("0")
+    discount_type: DiscountType = DiscountType.AMOUNT
+    tax_rate: Decimal | None = None
+
+
+class SalePaymentDirectIn(BaseModel):
+    id: UUID
+    payment_method: PaymentMethod
+    amount: Decimal
+    reference: str | None = None
+
+
+class SaleDirectIn(BaseModel):
+    id: UUID
+    customer_id: UUID | None = None
+    sale_date: datetime
+    warehouse_id: UUID
+    currency_code: str
+    exchange_rate: Decimal
+    notes: str | None = None
+    header_discount_amount: Decimal = Decimal("0")
+    header_discount_type: DiscountType = DiscountType.AMOUNT
+    header_discount_percent: Decimal | None = None
+    items: list[SaleItemDirectIn]
+    payments: list[SalePaymentDirectIn]

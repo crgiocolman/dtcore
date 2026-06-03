@@ -362,6 +362,7 @@ export function AdjustmentForm() {
 
   const searchRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const productInputRef = useRef<HTMLInputElement>(null)
+  const productJustSelected = useRef(false)
 
   // Load warehouses on mount
   useEffect(() => {
@@ -416,7 +417,7 @@ export function AdjustmentForm() {
 
   // Debounced product search
   useEffect(() => {
-    if (productSearch.length < 2) {
+    if (productSearch.length < 2 || productJustSelected.current) {
       setProductResults([])
       setShowProductDrop(false)
       return
@@ -471,9 +472,11 @@ export function AdjustmentForm() {
   }
 
   const handleSelectProduct = async (result: ProductSearchResult) => {
+    productJustSelected.current = true
     setSelectedProduct(result)
     setProductSearch(result.name)
     setShowProductDrop(false)
+    setProductResults([])
     const units = await fetchUnits(result.id, true).catch(() => [])
     setProductUnits(units)
     const def = units.find((u) => u.is_default_purchase_unit) ?? units[0]
@@ -993,6 +996,7 @@ export function AdjustmentForm() {
                       placeholder="Buscar producto (SKU, nombre)…"
                       value={productSearch}
                       onChange={(e) => {
+                        productJustSelected.current = false
                         setProductSearch(e.target.value)
                         setSelectedProduct(null)
                       }}

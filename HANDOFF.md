@@ -8,7 +8,7 @@ Memoria operativa del proyecto DTCore. Leer esto primero al retomar después de 
 
 ## Fase actual
 
-**Fase 6 completa.** Próximo: **Fase 7 — Pulido y entrega**, comenzando por **Bloque 7.1 — Tests del backend** (stock_service, purchase_service, sale_service; cobertura ≥80% en services).
+**Fase 7 en progreso.** Bloque 7.2 (manejo de errores) completo. Próximo: **7.1 — Tests del backend (foco crítico)**.
 
 ---
 

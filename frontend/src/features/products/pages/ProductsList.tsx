@@ -10,6 +10,7 @@ import {
 import { fetchPriceHistory } from '../api/prices'
 import { fetchUnits } from '../api/units'
 import { restoreProduct } from '../api/products'
+import { fetchProductStock } from '../../admin/api/stock'
 import { useProducts } from '../hooks/useProducts'
 
 function formatPYG(value: string): string {
@@ -69,6 +70,31 @@ export function ProductsList() {
           result.status === 'fulfilled' ? result.value.price : null
       })
       setPrices(map)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data])
+
+  // CPP enrichment — avg_cost_base por producto (primera entrada de stock disponible)
+  const [cpps, setCpps] = useState<Record<string, string | null | undefined>>({})
+  useEffect(() => {
+    if (items.length === 0) {
+      setCpps({})
+      return
+    }
+    setCpps(Object.fromEntries(items.map((p) => [p.id, undefined])))
+    Promise.allSettled(
+      items.map(async (product) => {
+        if (!product.track_stock) return { id: product.id, cpp: null as string | null }
+        const stock = await fetchProductStock(product.id)
+        const entry = stock[0]
+        return { id: product.id, cpp: entry ? entry.avg_cost_base : null }
+      }),
+    ).then((results) => {
+      const map: Record<string, string | null> = {}
+      results.forEach((result, i) => {
+        map[items[i].id] = result.status === 'fulfilled' ? result.value.cpp : null
+      })
+      setCpps(map)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
@@ -200,6 +226,7 @@ export function ProductsList() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary">Categoría</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary">Unidad base</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary">Precio PYG</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary">Costo CPP</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary">Estado</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary">Acciones</th>
                   </tr>
@@ -245,10 +272,25 @@ export function ProductsList() {
                             <span className="text-text-primary">{formatPYG(priceEntry)}</span>
                           )}
                         </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {!p.track_stock ? (
+                            <span className="text-text-muted">—</span>
+                          ) : cpps[p.id] === undefined ? (
+                            <span className="text-text-muted text-xs">…</span>
+                          ) : cpps[p.id] === null ? (
+                            <span className="text-text-muted">—</span>
+                          ) : (
+                            <span className="text-text-secondary">{formatPYG(cpps[p.id]!)}</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
-                          {p.deleted_at && (
+                          {p.deleted_at ? (
                             <span className="rounded-full bg-danger-500/15 px-2 py-0.5 text-xs font-medium text-danger-400">
                               Eliminado
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-bg-elevated px-2 py-0.5 text-xs font-medium text-text-secondary">
+                              Activo
                             </span>
                           )}
                         </td>

@@ -410,6 +410,50 @@ class TestLowStockProducts:
 
         assert result.warehouse_id == wid
 
+    async def test_null_threshold_uses_default_coalesce_in_query(self):
+        """Regresión BUG 3a: la query usa COALESCE para productos sin threshold individual."""
+        from app.services.report_service import low_stock_products
+        from sqlalchemy.dialects import postgresql
+
+        with patch(
+            "app.services.report_service.settings_service.get_setting",
+            new=AsyncMock(return_value=Decimal("5")),
+        ):
+            db = _db([_exec_all([])])
+            await low_stock_products(db)
+
+        stmt = db.execute.call_args[0][0]
+        sql = str(stmt.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+        assert "coalesce" in sql.lower()
+        # Verifica que NO filtra is_not_null (que excluiría productos sin threshold)
+        assert "is not null" not in sql.lower()
+
+    async def test_product_with_null_threshold_below_default_appears(self):
+        """Producto sin threshold individual, con stock bajo el default → aparece en resultado."""
+        from app.services.report_service import low_stock_products
+
+        pid = uuid4()
+        wid = uuid4()
+        # El backend devuelve el threshold efectivo = default (5), qty = 2
+        row = _row(
+            product_id=pid,
+            sku="NOTHRESH",
+            product_name="Sin threshold",
+            warehouse_id=wid,
+            quantity_base=Decimal("2"),
+            threshold=Decimal("5"),
+        )
+
+        with patch(
+            "app.services.report_service.settings_service.get_setting",
+            new=AsyncMock(return_value=Decimal("5")),
+        ):
+            db = _db([_exec_all([row])])
+            result = await low_stock_products(db)
+
+        assert any(i.product_id == pid for i in result.items)
+        assert result.items[0].threshold == Decimal("5")
+
 
 # ---------------------------------------------------------------------------
 # stock_value
@@ -569,3 +613,49 @@ class TestMovementsByProduct:
 
         with pytest.raises(ValueError, match="depósito por defecto"):
             await movements_by_product(db, product_id=uuid4())
+
+
+# ---------------------------------------------------------------------------
+# Regresión BUG 2 — status filter: confirmed only (no draft, no cancelled)
+# ---------------------------------------------------------------------------
+
+
+class TestReportStatusFilter:
+    async def _get_sql(self, fn, *args, **kwargs) -> str:
+        """Compila el statement de la primera llamada a db.execute y retorna el SQL."""
+        from sqlalchemy.dialects import postgresql
+
+        db = _db([_exec_all([])])
+        await fn(db, *args, **kwargs)
+        stmt = db.execute.call_args[0][0]
+        return str(stmt.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+
+    async def test_sales_by_period_filters_confirmed(self):
+        """sales_by_period usa status = 'confirmed', no != 'cancelled'."""
+        from app.services.report_service import sales_by_period
+
+        sql = await self._get_sql(
+            sales_by_period, date_from=date(2026, 1, 1), date_to=date(2026, 1, 31)
+        )
+        assert "= 'confirmed'" in sql
+        assert "!= 'cancelled'" not in sql
+
+    async def test_top_products_filters_confirmed(self):
+        """top_products usa status = 'confirmed'."""
+        from app.services.report_service import top_products
+
+        sql = await self._get_sql(
+            top_products, date_from=date(2026, 1, 1), date_to=date(2026, 1, 31)
+        )
+        assert "= 'confirmed'" in sql
+        assert "!= 'cancelled'" not in sql
+
+    async def test_profit_by_product_filters_confirmed(self):
+        """profit_by_product usa status = 'confirmed'."""
+        from app.services.report_service import profit_by_product
+
+        sql = await self._get_sql(
+            profit_by_product, date_from=date(2026, 1, 1), date_to=date(2026, 1, 31)
+        )
+        assert "= 'confirmed'" in sql
+        assert "!= 'cancelled'" not in sql

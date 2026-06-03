@@ -429,3 +429,38 @@ Si se ocultaran las inactivas, la UI daría la sensación de que la unidad "no e
 
 **Trade-off aceptado:** Una request con 500 registros devuelve más datos que una paginada. Para v1 con catálogos pequeños el impacto es despreciable.
 
+
+
+---
+
+## QA cruzado Fase 6 — bugs encontrados y resueltos
+
+### BUG 1 — CPP no se restaura al cancelar compra
+
+**Decisión:** Agregar columna `previous_avg_cost_base NUMERIC(18,4) NULL` a `stock_movements`. En `apply_movement`, antes de recalcular el CPP en movimientos de entrada (`direction='in'`), se guarda el valor previo. En `cancel_purchase`, después de crear los movimientos compensatorios (`return_out`), se restaura `stock_current.avg_cost_base` al `previous_avg_cost_base` del primer movimiento de entrada de cada producto en esa compra.
+
+**Por qué el PRIMER movement:** Una compra cancelada puede tener múltiples ítems del mismo producto (si se agrega el mismo SKU dos veces en la pantalla de compras). El primer ingreso establece el CPP antes de que la compra comenzara a afectarlo. Los subsiguientes ingresos de la misma compra ya incorporan el efecto de los anteriores — restaurar al primero devuelve el estado pre-compra.
+
+**Trade-off:** Los movimientos `return_out` generados por la cancelación no afectan el CPP (los egresos nunca modifican el promedio, sólo la cantidad). La restauración es una asignación directa post-cancelación, no un recálculo.
+
+### BUG 2 — Ventas draft y canceladas en reportes
+
+**Decisión:** Cambiar el filtro de `Sale.status != SaleStatus.CANCELLED` a `Sale.status == SaleStatus.CONFIRMED` en las tres funciones de reporte (`sales_by_period`, `top_products`, `profit_by_product`). El filtro anterior sólo excluía canceladas pero incluía drafts, que nunca deben aparecer en métricas de negocio.
+
+### BUG 3 — low_stock_threshold NULL sin fallback
+
+**Decisión:** `report_service.low_stock_products()` ya usaba `COALESCE` correctamente. Se agregó el mismo fix a `stock_service.get_stock_summary()` donde el filtro `low_stock_only` usaba `is_not(None)` (excluyendo productos sin threshold individual). Ahora ambas funciones usan `COALESCE(product.low_stock_threshold, settings.low_stock_default_threshold)`.
+
+**Frontend:** El POS carga al inicializar la lista de `product_id`s con stock bajo (`GET /reports/low-stock?warehouse_id=X`) y muestra un badge `⚠` en los resultados de búsqueda y en filas del carrito cuando el producto está en esa lista.
+
+### BUG 4 — POS con validación de stock cacheada
+
+**Decisión:** Agregar `useEffect` que limpia `paymentError` cada vez que cambia el carrito, y otro que limpia `paymentError` cuando se abre el modal de pago. Esto garantiza que errores de stock de intentos anteriores no persistan visualmente tras editar el carrito.
+
+### BUG 5 — F5 en POS pierde datos y crea drafts duplicados
+
+**Decisión:** El POS nunca crea una venta en BD hasta que el usuario confirma el pago. Se implementó el endpoint `POST /sales/direct` que recibe todos los datos (sale + items + payments) y crea + confirma atómicamente en una sola transacción. Si la transacción falla (ej. stock insuficiente), no queda ningún draft huérfano en la base de datos.
+
+**localStorage:** El carrito se persiste en `localStorage` con clave `pos_cart_draft`, permitiendo recuperar los ítems tras un F5 accidental antes de llegar al modal de cobro. Se limpia automáticamente al confirmar o al usar "Cancelar venta" (F9).
+
+**Trade-off eliminado:** Se descartó el mecanismo de `pendingSaleId` (retry sobre draft pre-existente) porque causaba el bug: si el usuario editaba el carrito tras un error de stock, el retry intentaba confirmar un draft con ítems stale. El nuevo endpoint hace la creación y confirmación instantáneas, eliminando la necesidad de estado intermedio.

@@ -339,7 +339,25 @@ items`
   - Reportes implementados: ventas por período, top productos, utilidad por producto, kardex de producto, valor de inventario
   - Exportación a CSV
 
-**Entregable:** sistema completo funcionalmente. El cliente tiene visibilidad sobre el negocio: qué se vende, cuánto se gana, qué falta reponer.
+- **6.6 — Vista operativa de inventario**
+  - Página `/inventario` con tabla de stock actual: SKU, nombre, categoría,
+    unidad base, stock actual, costo CPP, valor total (qty × CPP), última
+    actualización, badge "Stock bajo" si aplica
+  - Búsqueda por SKU/nombre/barcode, filtro por categoría, toggles
+    "Solo con stock" y "Solo stock bajo"
+  - Click en fila abre modal o navega a `/inventario/:product_id` con kardex
+    del producto (historial cronológico de movements con saldo acumulado por línea)
+  - Consume endpoints existentes `GET /api/v1/stock` y `GET /api/v1/stock/movements`
+  - SIN gráficos, SIN agrupaciones temporales (eso es Reportes)
+  - SIN exportación CSV en este bloque (los reportes ya cubren ese caso de uso)
+  - Aplicar `docs/design-system.md`
+
+**Entregable:** sistema completo funcionalmente. El cliente tiene tres vistas
+complementarias sobre su negocio:
+
+- **Inventario:** "¿Qué tengo?" — consulta operativa diaria.
+- **Reportes:** "¿Cómo va?" — análisis y exportación.
+- **Dashboard:** "¿Qué está pasando ahora?" — métricas del mes y alertas.
 
 ---
 
@@ -381,12 +399,19 @@ La numeración refleja agrupación lógica (tests, errores, UI, deployment, gent
   - Toast de error consistente, mensajes en español
   - Logs estructurados (level INFO en producción) en archivo configurable
 
-- **7.3 — Sidebar colapsable**
+- **7.3 — Sidebar colapsable + agrupación por categorías**
   - Tres estados: expandido (~200px, default en escritorio), colapsado (~60px solo iconos), oculto
   - Botón en header para ciclar entre estados
   - Persistencia en `localStorage` de la preferencia del usuario
   - En POS (`/pos`) el sidebar está oculto automáticamente (ya cubierto en bloque 5.2)
   - Transición suave (200ms)
+  - **Agrupación por secciones** con headers no clickeables:
+    - **Operación:** POS, Ventas, Compras, Ajustes
+    - **Catálogo:** Productos, Categorías, Contactos
+    - **Inventario:** Stock actual, Inventario inicial
+    - **Reportes**
+    - **Configuración:** Settings, Monedas, Unidades
+  - En estado colapsado: los headers de sección se ocultan, solo iconos visibles agrupados con separador sutil entre grupos
 
 - **7.4 — Responsive básico para vista en celular**
   - Objetivo: el cliente puede consultar **reportes** desde el celular (fuera del local, en su WiFi). No optimizar para operar el sistema desde móvil
@@ -443,6 +468,28 @@ La numeración refleja agrupación lógica (tests, errores, UI, deployment, gent
   - Cada bug crítico → fix inmediato con su test de regresión
   - Cada feature request → evaluar si es v1 (incluido) o v2 (cotizable aparte)
   - Revisión semanal de logs y backups durante el primer mes
+
+- **7.9 — Edición de fecha de transacciones por admin**
+  - Permitir al rol `admin` editar la fecha de ventas, compras y ajustes confirmados
+  - Aplica solo al campo de fecha (`sale_date`, `purchase_date`, `adjustment_date`)
+  - NO se permite editar montos, items, ni ningún otro campo post-confirmación
+  - Endpoint `PATCH /api/v1/{sales|purchases|adjustments}/{id}/date` con body `{new_date, reason}`
+  - Validaciones:
+    - Solo rol admin
+    - Solo si status='confirmed' (no en draft ni cancelled)
+    - Nueva fecha dentro del año calendario actual (1 ene → hoy)
+    - Motivo (`reason`) requerido, mínimo 10 caracteres
+  - Auditoría obligatoria en `audit_log` con action='date_edit', registrando fecha original, fecha nueva, motivo
+  - UI: en vista detalle de venta/compra/ajuste confirmado, botón "Editar fecha" visible solo para admin → modal con date picker + textarea de motivo
+  - Aplicar `docs/design-system.md`
+
+- **8.0 - Ordenamiento de listas**
+  - Componente común SortableHeader.
+  - Aplicar en: listado de productos, contactos, ventas, compras, ajustes.
+  - Click en header → cicla asc → desc → sin orden.
+  - Persistir el orden elegido en el URL query string (?sort=name&dir=asc) para
+    que F5 mantenga el orden.
+  - Backend: cada endpoint de listado debe aceptar ?sort=<col>&dir=<asc|desc>.
 
 **Entregable:** sistema en producción en el local del cliente. Cliente capacitado. Backups verificados. Listos para iterar.
 

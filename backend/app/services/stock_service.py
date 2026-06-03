@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from decimal import Decimal
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,6 +110,7 @@ async def apply_movement(
 
     # 5. Actualizar stock_current
     if direction == StockDirection.IN:
+        movement.previous_avg_cost_base = current.avg_cost_base
         total_qty = current.quantity_base + quantity_base
         if total_qty > 0:
             current.avg_cost_base = (
@@ -192,10 +195,10 @@ async def get_stock_summary(
         )
 
     if low_stock_only:
-        base = base.where(
-            Product.low_stock_threshold.is_not(None),
-            StockCurrent.quantity_base <= Product.low_stock_threshold,
-        )
+        default_t_str = await settings_service.get_setting(db, "low_stock_default_threshold")
+        default_t = Decimal(str(default_t_str or "5"))
+        effective_t = func.coalesce(Product.low_stock_threshold, default_t)
+        base = base.where(StockCurrent.quantity_base <= effective_t)
 
     total = (
         await db.execute(select(func.count()).select_from(base.subquery()))
@@ -333,6 +336,7 @@ async def apply_initial_inventory(
             direction=StockDirection.IN,
             quantity_base=item.quantity_base,
             unit_cost_base=item.unit_cost_base,
+            reference_type=StockReferenceType.INITIAL,
             user_id=user_id,
         )
         movements.append(movement)

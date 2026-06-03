@@ -864,6 +864,61 @@ Implementar bloque 6.5 siguiendo docs/roadmap.md.
 Aplicar docs/design-system.md: usar tokens semánticos (bg-bg-*, text-text-*, border-border-*), clases de componente (.btn-primary, .input, .label, .card), nunca hex hardcodeados ni text-white directo. Todas las columnas numéricas con tabular-nums. Recharts con colores del sistema.
 ```
 
+### Bloque 6.6 — Vista operativa de inventario
+
+```
+Implementar bloque 6.6 siguiendo docs/roadmap.md.
+
+CONTEXTO: el menú "Inventario" existía vacío. Este bloque cierra el hueco:
+provee la vista operativa diaria de stock que NO está cubierta por Reportes
+(análisis) ni por Ajustes (escritura).
+
+ALCANCE LIMITADO: lectura pura. Sin gráficos, sin exportación, sin reportes
+ricos. Esa funcionalidad ya está en /reportes.
+
+PÁGINA /inventario:
+- src/features/inventory/pages/InventoryList.tsx
+- Tabla con columnas: SKU, Nombre, Categoría, Unidad base, Stock actual,
+  Costo CPP (PYG), Valor total (qty × CPP, en PYG), Última actualización
+- Tabular-nums en columnas numéricas
+- Consume GET /api/v1/stock con paginación
+- Filtros:
+  - Búsqueda por SKU/nombre/barcode (debounce 300ms)
+  - Selector de categoría
+  - Toggle "Solo con stock" (quantity_base > 0)
+  - Toggle "Solo stock bajo" (quantity_base <= threshold, con fallback a
+    setting low_stock_default_threshold)
+- Indicadores visuales:
+  - Stock bajo: badge warning-500
+  - Sin stock: badge danger-500 con texto "Sin stock"
+- Ordenamiento por columna (reusar componente SortableHeader cuando se cree
+  en la mejora de UX)
+- Click en fila → navega a /inventario/:product_id
+
+KARDEX POR PRODUCTO /inventario/:product_id:
+- src/features/inventory/pages/ProductKardex.tsx
+- Header con datos del producto (nombre, SKU, unidad base, stock actual, CPP)
+- Tabla cronológica de movements del producto:
+  - Fecha
+  - Tipo (compra / venta / ajuste in/out / devolución / inicial / cancelación)
+  - Documento de referencia (link clickeable si aplica — a /compras/:id,
+    /ventas/:id, etc.)
+  - Cantidad con dirección clara (+18 en verde / -3 en rojo)
+  - Costo unitario en PYG
+  - Saldo acumulado tras el movement
+- Filtros: rango de fechas, tipo de movimiento
+- Consume GET /api/v1/stock/movements?product_id={id}&...
+- Botón "Volver a inventario"
+
+NAVEGACIÓN:
+- Entrada "Inventario" en sidebar dentro de la sección "Inventario" (junto a
+  "Inventario inicial" — ver bloque 7.3 agrupación)
+- Icono Boxes de Lucide
+- DESHABILITAR la lógica que ocultaba esta entrada (era placeholder)
+
+Aplicar docs/design-system.md.
+```
+
 ---
 
 # Fase 7 — Pulido y entrega
@@ -993,6 +1048,66 @@ Implementar bloque 7.3 siguiendo docs/roadmap.md.
   - hidden: 0px, sidebar fuera de pantalla
 - Transición suave: transition-all duration-200
 - En POS (/pos) el sidebar ya está oculto por diseño (bloque 5.2) — verificar que el toggle no aplica ahí
+
+AGRUPACIÓN POR SECCIONES:
+
+Reestructurar src/components/Sidebar.tsx para mostrar los items agrupados:
+
+const SIDEBAR_SECTIONS = [
+  {
+    label: 'Operación',
+    items: [
+      { label: 'POS', to: '/pos', Icon: ShoppingCart },
+      { label: 'Ventas', to: '/ventas', Icon: Receipt },
+      { label: 'Compras', to: '/compras', Icon: Truck },
+      { label: 'Ajustes', to: '/ajustes', Icon: ClipboardEdit },
+    ],
+  },
+  {
+    label: 'Catálogo',
+    items: [
+      { label: 'Productos', to: '/productos', Icon: Package },
+      { label: 'Categorías', to: '/admin/categorias', Icon: FolderTree },
+      { label: 'Contactos', to: '/contactos', Icon: Users },
+    ],
+  },
+  {
+    label: 'Inventario',
+    items: [
+      { label: 'Stock actual', to: '/inventario', Icon: Boxes },
+      { label: 'Inventario inicial', to: '/admin/inventario-inicial', Icon: PackagePlus },
+    ],
+  },
+  {
+    label: 'Reportes',
+    items: [
+      { label: 'Reportes', to: '/reportes', Icon: BarChart3 },
+    ],
+  },
+  {
+    label: 'Configuración',
+    items: [
+      { label: 'Settings', to: '/admin/settings', Icon: Settings },
+      { label: 'Monedas', to: '/admin/currencies', Icon: Coins },
+      { label: 'Unidades', to: '/admin/units', Icon: Ruler },
+    ],
+  },
+];
+
+ESTILO DE LOS HEADERS DE SECCIÓN:
+- text-xs uppercase tracking-wider text-text-muted
+- padding-x consistente con los items
+- margin-top entre secciones (excepto la primera)
+- En estado colapsado: ocultar el texto del header. Mostrar separador horizontal sutil
+  (border-b border-border-subtle) entre grupos para mantener agrupación visual.
+
+ENTRADA INICIO:
+- "Inicio" / Home queda como item suelto al tope, antes de la primera sección
+  (sin pertenecer a ninguna categoría — es la landing).
+
+INDICADOR DE RUTA ACTIVA:
+- Aplica solo a items (no a headers de sección).
+- Sin cambios respecto a la implementación actual.
 
 Aplicar docs/design-system.md: tooltip usa bg-bg-elevated, transición suave consistente con el resto del sistema.
 ```
@@ -1262,6 +1377,139 @@ No es un bloque de código. Mantener:
 ```
 
 ---
+
+### Bloque 7.9 — Edición de fecha de transacciones por admin
+
+```
+Implementar bloque 7.9 — Edición de fecha de transacciones confirmadas por admin.
+
+CONTEXTO: surge tras feedback de QA — admin necesita poder corregir fechas de
+ventas/compras/ajustes que se registraron tarde. Funcionalidad sensible: solo
+fecha, solo admin, con trazabilidad completa.
+
+DECISIONES DE DISEÑO (documentar en design-decisions.md):
+- Editar solo el campo de fecha, no monto ni items
+- Aplica a ventas, compras y ajustes confirmados (NO drafts ni cancelados)
+- In-place edit (no reabrir a draft)
+- Trazabilidad obligatoria con motivo escrito
+- Rango limitado configurable (default 30 días hacia atrás)
+
+BACKEND:
+
+1. Nuevo setting:
+   - key: max_date_edit_days_back
+   - value_type: int
+   - default: 30
+   - description: "Días máximos hacia atrás que admin puede editar fechas de transacciones"
+
+2. app/exceptions.py:
+   - DateEditOutOfRangeError(field, min_date, max_date, attempted_date) → 422
+   - InvalidStateForDateEditError(entity, status) → 409
+   - ReasonRequiredError → 422
+
+3. app/services/sale_service.py, purchase_service.py, adjustment_service.py:
+   Cada uno con función edit_date(db, entity_id, new_date, reason, user_id):
+   - Validar entity existe
+   - Validar status='confirmed'
+   - Validar user_id corresponde a un admin (consultar role)
+   - Validar new_date dentro del año calendario actual (entre 1 enero del año
+  vigente y hoy)
+   - Eliminar setting max_date_edit_days_back (ya no aplica)
+   - Validar reason.strip() tiene al menos 10 caracteres
+   - Guardar fecha original en variable
+   - Actualizar el campo de fecha (sale_date / purchase_date / adjustment_date)
+   - Audit log con action='date_edit', changes={
+       'old_date': fecha_original.isoformat(),
+       'new_date': new_date.isoformat(),
+       'reason': reason
+     }
+   - NO regenerar stock movements (solo cambió la fecha del documento, los
+     movements mantienen su created_at original)
+
+4. app/api/sales.py, purchases.py, adjustments.py:
+   Cada uno con endpoint:
+   - PATCH /api/v1/sales/{id}/date (mismo para purchases y adjustments)
+   - Body: { new_date: ISO date string, reason: string }
+   - Requiere auth + rol admin
+   - Devuelve la entity actualizada
+
+5. Schema Pydantic en cada feature:
+   - DateEditRequest: new_date (date), reason (str, min_length=10)
+
+6. Tests de regresión:
+   - Editar fecha de venta confirmada por admin → OK, audit log creado
+   - Editar fecha por operator → 403 Forbidden
+   - Editar fecha de venta draft → 409
+   - Editar fecha de venta cancelled → 409
+   - Editar a fecha fuera de rango (40 días atrás) → 422 con DateEditOutOfRange
+   - Editar a fecha futura → 422
+   - Sin reason o reason < 10 chars → 422
+
+FRONTEND:
+
+7. En vista detalle de venta/compra/ajuste (modo lectura):
+   - Si el usuario actual es admin Y entity.status='confirmed': mostrar botón
+     "Editar fecha" al lado de la fecha mostrada
+   - Botón con icono Calendar de Lucide, variante .btn-secondary
+   - Click → abre modal "Editar fecha de [venta/compra/ajuste]"
+
+8. Modal de edición:
+   - Date picker con rango limitado (hoy - 30 días hasta hoy, leer del setting)
+   - Textarea "Motivo del cambio" (placeholder: "Explicá por qué se modifica
+     la fecha...")
+   - Contador de caracteres mínimo 10
+   - Botones: Cancelar (.btn-secondary), Guardar cambios (.btn-primary)
+   - Botón Guardar deshabilitado si fecha no cambió o reason < 10 chars
+   - Tras éxito: toast "Fecha actualizada" + refresh de la entity en pantalla
+
+9. Mostrar trazabilidad:
+   - En vista detalle, agregar sección colapsable "Historial de cambios" que
+     consulta audit_log para esa entity
+   - Listar acciones cronológicamente: create, confirm, date_edit (con fecha
+     vieja → nueva + motivo), cancel
+   - Esta sección es read-only y visible para todos los roles
+
+10. Documentar en docs/design-decisions.md sección "Edición de fecha
+    post-confirmación":
+    - Decisión: solo admin, solo fecha, con motivo obligatorio
+    - Por qué NO se permite editar otros campos
+    - Por qué NO se reabren las transacciones a draft
+    - Trade-off aceptado: el admin tiene poder de "corregir tarde" pero queda
+      auditado
+
+Aplicar docs/design-system.md en toda la UI.
+```
+
+### Bloque 7.9 — Edición de fecha de transacciones por admin
+
+```
+MEJORA 3 — Ordenamiento en listas:
+- Componente común SortableHeader.
+- Aplicar en: listado de productos, contactos, ventas, compras, ajustes.
+- Click en header → cicla asc → desc → sin orden.
+- Persistir el orden elegido en el URL query string (?sort=name&dir=asc) para
+  que F5 mantenga el orden.
+- Backend: cada endpoint de listado debe aceptar ?sort=<col>&dir=<asc|desc>.
+
+Detalles (24 cambios):
+
+Backend — 10 archivos:
+
+Cada service (product_service, contact_service, sale_service, purchase_service, adjustment_service): agregar sort_col: str | None y sort_dir: str a la función list_*, con allowlist de columnas válidas. Columnas sortables:
+Productos: name, sku, created_at
+Contactos: business_name, created_at
+Ventas: sale_date, sale_number, total
+Compras: purchase_date, purchase_number, total
+Ajustes: adjustment_date, adjustment_number
+Cada API router: agregar sort: str | None = Query(None) y dir: Literal['asc','desc'] = Query('asc')
+Frontend — 14 archivos:
+
+Nuevo: frontend/src/components/SortableHeader.tsx — clickea cicla asc → desc → sin orden
+5 hooks (useProducts, useContacts, useSales, usePurchases, useAdjustments): agregar sort/dir con useSearchParams para persistir en URL; setSort actualiza URL + resetea página
+5 API types (products, contacts, sales, purchases, adjustments): agregar sort/dir en *ListParams
+5 páginas de lista: reemplazar <th> sortables con <SortableHeader>
+
+```
 
 ## Nota sobre flexibilidad
 

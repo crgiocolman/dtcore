@@ -15,8 +15,17 @@ export function applyInitialInventory(data: InitialInventoryRequest): Promise<un
   return apiFetch('/stock/initial', { method: 'POST', body: JSON.stringify(data) })
 }
 
+export interface StockCurrentOut {
+  product_id: string
+  warehouse_id: string
+  quantity_base: string
+  avg_cost_base: string
+  last_movement_at: string | null
+  updated_at: string
+}
+
 interface StockSummaryPage {
-  items: { product_id: string }[]
+  items: { product_id: string; avg_cost_base: string }[]
   total_pages: number
 }
 
@@ -37,4 +46,8 @@ export async function fetchStockedProductIds(warehouseId: string): Promise<Set<s
     rest.forEach((r) => r.items.forEach((i) => ids.add(i.product_id)))
   }
   return ids
+}
+
+export function fetchProductStock(productId: string): Promise<StockCurrentOut[]> {
+  return apiFetch<StockCurrentOut[]>(`/stock/products/${productId}`)
 }

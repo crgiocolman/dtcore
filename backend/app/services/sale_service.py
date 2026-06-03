@@ -25,6 +25,7 @@ from app.models.sales import Sale, SaleItem, SalePayment
 from app.models.users import User
 from app.schemas.sales import (
     SaleCreate,
+    SaleDirectIn,
     SaleItemCreate,
     SaleItemUpdate,
     SaleListItem,
@@ -921,3 +922,68 @@ async def get_sale_audit(
         }
         for row in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Confirmación directa (atómica para POS)
+# ---------------------------------------------------------------------------
+
+
+async def confirm_sale_direct(
+    db: AsyncSession,
+    *,
+    data: SaleDirectIn,
+    user_id: UUID,
+) -> Sale:
+    """Crea draft + items + pagos + confirma en una sola transacción.
+    El POS nunca persiste estado intermedio; si falla, no queda ningún draft huérfano.
+    """
+    await create_sale(
+        db,
+        data=SaleCreate(
+            id=data.id,
+            customer_id=data.customer_id,
+            sale_date=data.sale_date,
+            warehouse_id=data.warehouse_id,
+            currency_code=data.currency_code,
+            exchange_rate=data.exchange_rate,
+            notes=data.notes,
+            header_discount_amount=data.header_discount_amount,
+            header_discount_type=data.header_discount_type,
+            header_discount_percent=data.header_discount_percent,
+        ),
+        user_id=user_id,
+    )
+    await db.flush()
+
+    for item_in in data.items:
+        await add_item(
+            db,
+            sale_id=data.id,
+            data=SaleItemCreate(
+                id=item_in.id,
+                product_id=item_in.product_id,
+                product_unit_id=item_in.product_unit_id,
+                quantity=item_in.quantity,
+                unit_price=item_in.unit_price,
+                discount_amount=item_in.discount_amount,
+                discount_type=item_in.discount_type,
+                tax_rate=item_in.tax_rate,
+            ),
+            user_id=user_id,
+        )
+
+    for payment_in in data.payments:
+        await add_payment(
+            db,
+            sale_id=data.id,
+            data=SalePaymentCreate(
+                id=payment_in.id,
+                payment_method=payment_in.payment_method,
+                amount=payment_in.amount,
+                reference=payment_in.reference,
+            ),
+            user_id=user_id,
+        )
+
+    return await confirm_sale(db, sale_id=data.id, user_id=user_id)

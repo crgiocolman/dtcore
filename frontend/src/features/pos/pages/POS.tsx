@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowLeft,
   Check,
   CheckCircle2,
@@ -18,6 +19,7 @@ import { apiFetch } from '../../../lib/api'
 import { useKeyboardShortcuts } from '../../../lib/hooks/useKeyboardShortcuts'
 import { formatQuantity } from '../../../lib/format'
 import { parseApiError as _parseErr } from '../../../lib/parseApiError'
+import { fetchLowStock } from '../../dashboard/api/reports'
 import { fetchWarehouses } from '../../admin/api/warehouses'
 import type { UnitType } from '../../admin/api/unit_catalog'
 import { fetchContacts, type ContactOut } from '../../contacts/api/contacts'
@@ -27,10 +29,7 @@ import { fetchUnits, type ProductUnitOut } from '../../products/api/units'
 import { useAuthStore } from '../../auth/store'
 import { useSettings } from '../../settings/hooks/useSettings'
 import {
-  addSaleItem,
-  addSalePayment,
-  confirmSale,
-  createSale,
+  confirmSaleDirect,
   type DiscountType,
   type PaymentMethod,
 } from '../api/sales'
@@ -434,14 +433,12 @@ function PaymentModal({
   total,
   confirming,
   confirmError,
-  pendingSaleCreated,
   onConfirm,
   onClose,
 }: {
   total: number
   confirming: boolean
   confirmError: string | null
-  pendingSaleCreated: boolean
   onConfirm: (payments: PendingPayment[]) => void
   onClose: () => void
 }) {
@@ -568,9 +565,9 @@ function PaymentModal({
             {confirmError}
           </div>
         )}
-        {pendingSaleCreated && confirmError && (
+        {confirmError && (
           <p className="text-xs text-text-muted">
-            La venta fue registrada. Podés reintentar la confirmación.
+            Corregí el error y volvé a intentarlo.
           </p>
         )}
 
@@ -641,6 +638,7 @@ export function POS() {
   const [warehouseId, setWarehouseId] = useState('')
   const [saleRequiresCustomer, setSaleRequiresCustomer] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
+  const [lowStockProductIds, setLowStockProductIds] = useState<Set<string>>(new Set())
 
   // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([])
@@ -666,8 +664,7 @@ export function POS() {
   const [addItemError, setAddItemError] = useState<string | null>(null)
   const [loadingPrice, setLoadingPrice] = useState(false)
 
-  // Pending sale (for confirm retry)
-  const [pendingSaleId, setPendingSaleId] = useState<string | null>(null)
+  // Payment state
   const [paymentConfirming, setPaymentConfirming] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
 
@@ -692,7 +689,12 @@ export function POS() {
     ])
       .then(([whs, setting]) => {
         const def = whs.find(w => w.is_default) ?? whs[0]
-        if (def) setWarehouseId(def.id)
+        if (def) {
+          setWarehouseId(def.id)
+          fetchLowStock(def.id)
+            .then(data => setLowStockProductIds(new Set(data.items.map(i => i.product_id))))
+            .catch(() => {})
+        }
         setSaleRequiresCustomer(setting.value === true)
       })
       .catch(() => setInitError('No se pudo cargar la configuración del POS'))
@@ -719,6 +721,32 @@ export function POS() {
     }, 200)
     return () => clearTimeout(searchTimerRef.current)
   }, [productQuery])
+
+  // Persistencia del carrito en localStorage — recupera tras F5 accidental
+  useEffect(() => {
+    const saved = localStorage.getItem('pos_cart_draft')
+    if (saved) {
+      try { setCartItems(JSON.parse(saved)) } catch { /* ignorar dato corrupto */ }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (cartItems.length > 0) {
+      localStorage.setItem('pos_cart_draft', JSON.stringify(cartItems))
+    } else {
+      localStorage.removeItem('pos_cart_draft')
+    }
+  }, [cartItems])
+
+  // Al cambiar el carrito: limpiar error de stock previo
+  useEffect(() => {
+    setPaymentError(null)
+  }, [cartItems])
+
+  // Al abrir el modal de cobro: limpiar error de intento anterior
+  useEffect(() => {
+    if (showPayment) setPaymentError(null)
+  }, [showPayment])
 
   // Global F-key shortcuts
   const anyModalOpen = showHelp || showCustomer || showDiscount || showPayment || !!successSaleNumber
@@ -861,58 +889,40 @@ export function POS() {
     setPaymentConfirming(true)
     setPaymentError(null)
 
+    const hDiscAmount = headerDiscount.type === 'amount' ? parseFloat(headerDiscount.amount) || 0 : 0
+    const saleId = crypto.randomUUID()
+
     try {
-      let saleId = pendingSaleId
-
-      if (!saleId) {
-        const hDiscAmount = headerDiscount.type === 'amount'
-          ? parseFloat(headerDiscount.amount) || 0
-          : 0
-
-        const newSaleId = crypto.randomUUID()
-        await createSale({
-          id: newSaleId,
-          customer_id: customerId || null,
-          sale_date: new Date().toISOString(),
-          warehouse_id: warehouseId,
-          currency_code: 'PYG',
-          exchange_rate: 1,
-          header_discount_amount: hDiscAmount,
-          header_discount_type: headerDiscount.type,
-          header_discount_percent:
-            headerDiscount.type === 'percent' ? parseFloat(headerDiscount.percent) || null : null,
-        })
-        saleId = newSaleId
-
-        for (const item of cartItems) {
-          await addSaleItem(saleId, {
-            id: crypto.randomUUID(),
-            product_id: item.product_id,
-            product_unit_id: item.product_unit_id,
-            quantity: parseFloat(item.quantity),
-            unit_price: parseFloat(item.unit_price),
-            discount_amount: parseFloat(item.discount_amount) || 0,
-            discount_type: 'amount',
-            tax_rate: parseFloat(item.tax_rate),
-          })
-        }
-
-        for (const payment of payments) {
-          await addSalePayment(saleId, {
-            id: crypto.randomUUID(),
-            payment_method: payment.method,
-            amount: parseFloat(payment.amount),
-            reference: payment.reference || null,
-          })
-        }
-
-        setPendingSaleId(saleId)
-      }
-
-      const result = await confirmSale(saleId)
+      const result = await confirmSaleDirect({
+        id: saleId,
+        customer_id: customerId || null,
+        sale_date: new Date().toISOString(),
+        warehouse_id: warehouseId,
+        currency_code: 'PYG',
+        exchange_rate: 1,
+        header_discount_amount: hDiscAmount,
+        header_discount_type: headerDiscount.type,
+        header_discount_percent:
+          headerDiscount.type === 'percent' ? parseFloat(headerDiscount.percent) || null : null,
+        items: cartItems.map(item => ({
+          id: crypto.randomUUID(),
+          product_id: item.product_id,
+          product_unit_id: item.product_unit_id,
+          quantity: parseFloat(item.quantity),
+          unit_price: parseFloat(item.unit_price),
+          discount_amount: parseFloat(item.discount_amount) || 0,
+          discount_type: 'amount' as const,
+          tax_rate: parseFloat(item.tax_rate),
+        })),
+        payments: payments.map(p => ({
+          id: crypto.randomUUID(),
+          payment_method: p.method,
+          amount: parseFloat(p.amount),
+          reference: p.reference || null,
+        })),
+      })
 
       setShowPayment(false)
-      setPendingSaleId(null)
       setSuccessSaleNumber(result.sale_number ?? saleId.slice(0, 8))
     } catch (err) {
       const parsed = _parseErr(err)
@@ -1083,6 +1093,12 @@ export function POS() {
                         <span className="font-medium text-text-primary">{r.name}</span>
                         <span className="ml-2 text-xs text-text-muted">{r.sku}</span>
                         {r.barcode && <span className="ml-2 text-xs text-text-muted">{r.barcode}</span>}
+                        {lowStockProductIds.has(r.id) && (
+                          <span className="ml-2 inline-flex items-center gap-0.5 text-xs text-warning-500">
+                            <AlertTriangle className="h-3 w-3" />
+                            Stock bajo
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -1198,7 +1214,14 @@ export function POS() {
                         }`}
                         onClick={() => setFocusedItemId(isFocused ? null : item.localId)}
                       >
-                        <td className="px-4 py-3 text-text-primary">{item.product_name}</td>
+                        <td className="px-4 py-3 text-text-primary">
+                          <span>{item.product_name}</span>
+                          {lowStockProductIds.has(item.product_id) && (
+                            <span className="ml-2 inline-flex items-center gap-0.5 text-xs text-warning-500" title="Stock bajo mínimo">
+                              <AlertTriangle className="h-3 w-3" />
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-text-secondary">{item.unit_name}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-text-primary">
                           {editingQtyId === item.localId ? (
@@ -1420,7 +1443,6 @@ export function POS() {
           total={finalTotal}
           confirming={paymentConfirming}
           confirmError={paymentError}
-          pendingSaleCreated={!!pendingSaleId}
           onConfirm={handleConfirmSale}
           onClose={() => {
             if (!paymentConfirming) {

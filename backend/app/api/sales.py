@@ -15,6 +15,7 @@ from app.schemas.sales import (
     SaleAuditEntry,
     SaleCancelBody,
     SaleCreate,
+    SaleDirectIn,
     SaleItemCreate,
     SaleItemOut,
     SaleItemUpdate,
@@ -128,6 +129,25 @@ async def list_sales(
         page_size=page_size,
         total_pages=math.ceil(total / page_size) if total > 0 else 1,
     )
+
+
+# /direct debe declararse antes de /{sale_id} para evitar confusión de routing
+@router.post("/direct", response_model=SaleOut, status_code=status.HTTP_201_CREATED)
+async def create_and_confirm_sale(
+    body: SaleDirectIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Crea + confirma la venta atómicamente. Usado por el POS para evitar drafts huérfanos."""
+    try:
+        sale = await sale_service.confirm_sale_direct(db, data=body, user_id=current_user.id)
+        await db.commit()
+        await db.refresh(sale)
+        sale_out, items, payments, customer_name, names = await sale_service.get_sale(db, sale.id)
+        return _sale_to_out(sale_out, items, payments, customer_name, names)
+    except Exception:
+        await db.rollback()
+        raise
 
 
 @router.post("", response_model=SaleOut, status_code=status.HTTP_201_CREATED)
