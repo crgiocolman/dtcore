@@ -342,6 +342,35 @@
       text-decoration: none;
     }
 
+    /* ─── Mobile ─────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      body {
+        font-size: 15px;
+        padding: 1rem 1rem;
+      }
+      header {
+        margin-bottom: 1.5rem;
+      }
+      header h1 {
+        font-size: 1.5rem;
+      }
+      section {
+        margin-bottom: 2rem;
+      }
+      .step {
+        gap: 0.85rem;
+      }
+      .step-number {
+        width: 40px;
+        height: 40px;
+        font-size: 1.1rem;
+      }
+      img {
+        max-width: 100%;
+        height: auto;
+      }
+    }
+
     /* ─── Impresión ───────────────────────────────────────────────── */
     @media print {
       body {
@@ -819,6 +848,6 @@
   </script>
 
   <a href="index.html" class="back-to-menu" style="position:fixed;bottom:24px;right:24px;z-index:999;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;">&#8592; Men&#250;</a>
-  <style>@media print{.back-to-menu{display:none}}</style>
+  <style>@media print{.back-to-menu{display:none}}@media (max-width:768px){.back-to-menu{padding:8px 12px !important;font-size:.8rem !important;bottom:16px !important;right:16px !important;}}</style>
 </body>
 </html>

@@ -208,6 +208,35 @@
       text-decoration: none;
     }
 
+    /* ─── Mobile ─────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      body {
+        font-size: 15px;
+        padding: 1rem 1rem;
+      }
+      header {
+        margin-bottom: 1.5rem;
+      }
+      header h1 {
+        font-size: 1.5rem;
+      }
+      section {
+        margin-bottom: 2rem;
+      }
+      .step {
+        gap: 0.85rem;
+      }
+      .step-number {
+        width: 40px;
+        height: 40px;
+        font-size: 1.1rem;
+      }
+      img {
+        max-width: 100%;
+        height: auto;
+      }
+    }
+
     /* ─── Impresión ───────────────────────────────────────────────── */
     @media print {
       body {

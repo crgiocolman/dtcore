@@ -282,10 +282,19 @@
       line-height: 1.5;
     }
 
-    @media (max-width: 620px) {
-      .steps-grid,
-      .concepts-grid,
+    @media (max-width: 768px) {
+      body {
+        font-size: 15px;
+        padding: 1rem 1rem;
+      }
+      header h1 {
+        font-size: 1.5rem;
+      }
       .flows-grid {
+        grid-template-columns: 1fr;
+      }
+      .steps-grid,
+      .concepts-grid {
         grid-template-columns: 1fr;
       }
     }
