@@ -1,0 +1,586 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POS y Ventas — Manual DTCore</title>
+  <style>
+    /* ─── Reset y base ───────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary:        #2563eb;
+      --primary-light:  #eff6ff;
+      --primary-dark:   #1d4ed8;
+      --text:           #1e293b;
+      --text-light:     #475569;
+      --text-muted:     #94a3b8;
+      --border:         #e2e8f0;
+      --surface:        #f8fafc;
+      --warn-bg:        #fef9c3;
+      --warn-border:    #f59e0b;
+      --warn-text:      #78350f;
+      --tip-border:     #cbd5e1;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    header {
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .brand {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    /* ─── Secciones ──────────────────────────────────────────────── */
+    section {
+      margin-bottom: 2.75rem;
+    }
+
+    section h2 {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    section p,
+    section li {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ─── Pasos ──────────────────────────────────────────────────── */
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 0.35rem;
+    }
+
+    .step-body h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+
+    .step-body p {
+      color: var(--text-light);
+    }
+
+    /* ─── Advertencias ────────────────────────────────────────────── */
+    .warning {
+      background: var(--warn-bg);
+      border-left: 4px solid var(--warn-border);
+      border-radius: 0 6px 6px 0;
+      padding: 0.875rem 1.125rem;
+      margin: 0.9rem 0;
+      color: var(--warn-text);
+      font-size: 0.97rem;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .warning strong {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 0.15rem;
+    }
+
+    /* ─── Consejos / errores ──────────────────────────────────────── */
+    .tip-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .tip {
+      padding: 0.75rem 1.1rem;
+      border-left: 3px solid var(--tip-border);
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.97rem;
+    }
+
+    .tip strong {
+      display: block;
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 0.1rem;
+    }
+
+    .tip span {
+      color: var(--text-light);
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    /* ─── Impresión ───────────────────────────────────────────────── */
+    @media print {
+      body { padding: 0; max-width: 100%; font-size: 12pt; }
+      header { page-break-after: avoid; }
+      section { page-break-inside: avoid; }
+      .step { page-break-inside: avoid; }
+      .warning { page-break-inside: avoid; }
+      footer { page-break-before: avoid; }
+      a[href]::after { content: none; }
+    }
+
+    /* ─── Extras para esta página ─────────────────────────────────── */
+    .nav-back {
+      display: inline-block;
+      font-size: 0.9rem;
+      color: var(--primary);
+      text-decoration: none;
+      margin-bottom: 1.5rem;
+    }
+    .nav-back::before { content: '← '; }
+
+    kbd {
+      display: inline-block;
+      font-family: monospace;
+      font-size: 0.82rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1rem 0.5rem;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .shortcut-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .shortcut-table th {
+      background: var(--surface);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0.45rem 0.85rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .shortcut-table td {
+      padding: 0.5rem 0.85rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      color: var(--text-light);
+    }
+    .shortcut-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .shortcut-table td:first-child {
+      width: 10rem;
+      white-space: nowrap;
+    }
+
+    .btn {
+      display: inline-block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 5px;
+      padding: 0.1rem 0.55rem;
+      white-space: nowrap;
+    }
+    .btn-danger { background: #ef4444; }
+    .btn-sec {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-accent { background: #0ea5e9; }
+
+    /* Fix: texto de botones dentro de tips */
+    .tip span .btn       { color: #fff; }
+    .tip span .btn-danger { color: #fff; }
+    .tip span .btn-accent { color: #fff; }
+    .tip span .btn-sec    { color: var(--text); }
+
+    .field-group {
+      margin: 0.6rem 0 0.2rem;
+      padding-left: 0.75rem;
+      border-left: 2px solid var(--border);
+      list-style: none;
+    }
+    .field-group li {
+      font-size: 0.95rem;
+      color: var(--text-light);
+      line-height: 1.85;
+    }
+    .field-name {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .subsection-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin: 0 0 0.75rem;
+    }
+    .subsection-label + .step-list {
+      margin-bottom: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <a class="nav-back" href="index.html">Volver al índice</a>
+
+  <header>
+    <span class="brand">DTCore</span>
+    <h1>POS y Ventas</h1>
+    <p class="header-subtitle">Manual de usuario</p>
+  </header>
+
+  <main>
+
+    <!-- ─── ¿PARA QUÉ SIRVE? ─────────────────────────────────────── -->
+    <section>
+      <h2>¿Para qué sirve?</h2>
+      <p>El <strong>POS (Punto de Venta)</strong> es la pantalla principal para registrar ventas. Permite buscar productos, armar el carrito, aplicar descuentos, asociar un cliente y registrar el cobro en uno o varios métodos de pago. Al confirmar, el stock se actualiza automáticamente y la venta recibe un número correlativo.</p>
+      <p style="margin-top:0.75rem">La pantalla de <strong>Ventas</strong> muestra el historial completo de ventas registradas. Desde ahí podés consultar el detalle de cualquier venta —ítems, totales y pagos— y cancelar ventas confirmadas cuando sea necesario.</p>
+    </section>
+
+    <!-- ─── ATAJOS DE TECLADO ─────────────────────────────────────── -->
+    <section>
+      <h2>Atajos de teclado</h2>
+      <p style="margin-bottom:0.85rem">El POS está diseñado para operar completamente con teclado. Los atajos funcionan en cualquier momento mientras no haya un modal abierto. Presioná <kbd>F1</kbd> en cualquier momento para ver esta lista dentro del sistema.</p>
+      <table class="shortcut-table">
+        <thead>
+          <tr>
+            <th>Tecla</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><kbd>F1</kbd></td>
+            <td>Mostrar lista de atajos (ayuda)</td>
+          </tr>
+          <tr>
+            <td><kbd>F2</kbd></td>
+            <td>Seleccionar o cambiar cliente</td>
+          </tr>
+          <tr>
+            <td><kbd>F3</kbd></td>
+            <td>Aplicar descuento a la venta o al ítem seleccionado en el carrito</td>
+          </tr>
+          <tr>
+            <td><kbd>F4</kbd></td>
+            <td>Abrir pantalla de cobro</td>
+          </tr>
+          <tr>
+            <td><kbd>F9</kbd></td>
+            <td>Cancelar la venta actual (limpia el carrito)</td>
+          </tr>
+          <tr>
+            <td><kbd>Esc</kbd></td>
+            <td>Cerrar modal / limpiar el campo de búsqueda activo</td>
+          </tr>
+          <tr>
+            <td><kbd>↑</kbd> / <kbd>↓</kbd></td>
+            <td>Navegar resultados de búsqueda de productos o clientes</td>
+          </tr>
+          <tr>
+            <td><kbd>Enter</kbd></td>
+            <td>Seleccionar el resultado resaltado / confirmar acción</td>
+          </tr>
+          <tr>
+            <td><kbd>Tab</kbd></td>
+            <td>Avanzar al siguiente campo: búsqueda → cantidad → unidad</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ─── PASOS ─────────────────────────────────────────────────── -->
+    <section>
+      <h2>Pasos</h2>
+
+      <span class="subsection-label">Registrar una venta desde el POS</span>
+      <ol class="step-list">
+
+        <li class="step">
+          <div class="step-number">1</div>
+          <div class="step-body">
+            <h3>Abrir el POS</h3>
+            <p>En el menú lateral, hacé clic en <strong>POS — Punto de Venta</strong>. La pantalla ocupa toda la ventana: a la izquierda aparecen la barra de búsqueda y el carrito; a la derecha, el cliente, el resumen de totales y el botón <span class="btn btn-accent">Cobrar (F4)</span>. El campo de búsqueda queda activo automáticamente.</p>
+            <p style="margin-top:0.5rem">Para salir del POS hacé clic en <strong>Salir POS</strong> (esquina superior izquierda).</p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">2</div>
+          <div class="step-body">
+            <h3>Buscar y agregar un producto</h3>
+            <p>En el campo <strong>Buscar producto — SKU, código de barras o nombre…</strong> escribí al menos 2 caracteres. Aparecen hasta 8 coincidencias. Usá <kbd>↑</kbd>/<kbd>↓</kbd> para navegar y <kbd>Enter</kbd> para seleccionar, o hacé clic directamente en el resultado.</p>
+            <p style="margin-top:0.5rem">Después de seleccionar un producto completá los campos de la barra:</p>
+            <ul class="field-group">
+              <li><span class="field-name">Cant.</span> — cantidad a vender (por defecto: 1)</li>
+              <li><span class="field-name">Unidad</span> — se selecciona automáticamente la unidad de venta predeterminada; podés cambiarla</li>
+              <li><span class="field-name">Precio ₲</span> — se carga automáticamente desde el catálogo; podés modificarlo para esta venta</li>
+            </ul>
+            <p style="margin-top:0.5rem">Debajo del campo de búsqueda aparece la leyenda <em>Precio incluye IVA</em> o <em>Precio sin IVA</em>, junto con el porcentaje de IVA del producto.</p>
+            <p style="margin-top:0.5rem">Presioná <kbd>Enter</kbd> o hacé clic en <span class="btn">Agregar</span>. El ítem aparece en el carrito y la búsqueda se limpia para agregar el siguiente producto.</p>
+            <div class="warning">
+              <strong>⚠ Stock insuficiente</strong>
+              Si el stock disponible es menor al solicitado, el sistema lo permite agregar al carrito pero bloquea el cobro con el mensaje "Stock insuficiente — [nombre]: disponible X, solicitado Y". Ajustá la cantidad o quitá el ítem antes de cobrar.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">3</div>
+          <div class="step-body">
+            <h3>Editar cantidad o quitar un ítem del carrito</h3>
+            <p>En la tabla del carrito podés:</p>
+            <ul class="field-group">
+              <li><span class="field-name">Cambiar cantidad</span> — hacé clic en el número de la columna <strong>Cantidad</strong>. Se convierte en un campo editable. Confirmá con <kbd>Enter</kbd> o cancelá con <kbd>Esc</kbd>.</li>
+              <li><span class="field-name">Quitar un ítem</span> — hacé clic en el ícono de papelera al final de la fila.</li>
+            </ul>
+            <p style="margin-top:0.5rem">Para limpiar el carrito completo y empezar una venta nueva, presioná <kbd>F9</kbd>.</p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">4</div>
+          <div class="step-body">
+            <h3>Seleccionar un cliente</h3>
+            <p>Presioná <kbd>F2</kbd> o hacé clic en <strong>F2 cambiar</strong> en el panel derecho. Se abre el modal <strong>Seleccionar cliente</strong>. Escribí en el campo <strong>Buscar por nombre o documento…</strong>, navegá los resultados y presioná <kbd>Enter</kbd> o hacé clic para seleccionar.</p>
+            <p style="margin-top:0.5rem">Para vender sin asociar cliente, hacé clic en <span class="btn btn-sec">Sin cliente</span>. Si ya hay un cliente seleccionado, hacé clic en la X al lado de su nombre para quitarlo.</p>
+            <div class="warning">
+              <strong>⚠ Cliente obligatorio según configuración</strong>
+              Si el negocio tiene activada la opción "Requiere cliente", el botón <span class="btn btn-accent">Cobrar (F4)</span> permanece deshabilitado hasta que selecciones un cliente. El panel derecho muestra el mensaje <em>Se requiere cliente para esta venta</em>.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">5</div>
+          <div class="step-body">
+            <h3>Aplicar un descuento (F3)</h3>
+            <p>Presioná <kbd>F3</kbd> o hacé clic en <strong>F3 agregar descuento</strong> (debajo del IVA en el panel derecho). Se abre el modal <strong>Descuento</strong>.</p>
+            <p style="margin-top:0.5rem">El modal tiene dos pestañas:</p>
+            <ul class="field-group">
+              <li><span class="field-name">Cabecera</span> — descuento sobre el total de la venta completa. Elegí <strong>Monto (₲)</strong> para un importe fijo o <strong>Porcentaje (%)</strong> para un porcentaje del total.</li>
+              <li><span class="field-name">[nombre del producto]</span> — descuento sobre un ítem específico en monto fijo (₲). Esta pestaña aparece solo si antes hiciste clic en una fila del carrito para resaltarla.</li>
+            </ul>
+            <p style="margin-top:0.5rem">Ingresá el valor y hacé clic en <span class="btn">Aplicar</span>. El descuento se refleja en la columna <strong>Descuento</strong> del carrito y en el resumen del panel derecho.</p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">6</div>
+          <div class="step-body">
+            <h3>Cobrar — registrar el pago</h3>
+            <p>Presioná <kbd>F4</kbd> o hacé clic en <span class="btn btn-accent">Cobrar (F4)</span>. Se abre el modal <strong>Cobrar venta</strong> con el <strong>Total a cobrar</strong> destacado.</p>
+            <p style="margin-top:0.5rem">Por defecto hay una fila de pago con el método <strong>Efectivo</strong> y el monto total prellenado. Para cada fila de pago completá:</p>
+            <ul class="field-group">
+              <li><span class="field-name">Método de pago</span> — Efectivo, Transferencia, Tarjeta, Cheque u Otro</li>
+              <li><span class="field-name">Monto ₲</span> — importe de esa forma de pago</li>
+              <li><span class="field-name">Ref. (opcional)</span> — número de comprobante, referencia de transferencia, número de cheque, etc.</li>
+            </ul>
+            <p style="margin-top:0.5rem">Para cobrar con más de un método, hacé clic en <span class="btn btn-sec">+ Agregar forma de pago</span> y completá la nueva fila.</p>
+            <div class="warning">
+              <strong>⚠ La suma de pagos debe igualar el total</strong>
+              El indicador <strong>Pagado</strong> se pone verde cuando la suma coincide con el total. Si hay diferencia, el sistema muestra <em>"Faltan ₲ X"</em> o <em>"Excede en ₲ X"</em> y el botón <span class="btn btn-accent">Cobrar</span> permanece deshabilitado.
+            </div>
+            <p style="margin-top:0.5rem">Cuando el indicador está verde, hacé clic en <span class="btn btn-accent">Cobrar</span> para confirmar la venta.</p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">7</div>
+          <div class="step-body">
+            <h3>Venta confirmada — nueva venta</h3>
+            <p>Aparece el mensaje <strong>¡Venta confirmada!</strong> con el número de venta asignado. El stock se actualiza automáticamente y la venta queda registrada en el historial. Hacé clic en <span class="btn">Nueva venta</span> para limpiar el carrito y registrar la siguiente.</p>
+          </div>
+        </li>
+
+      </ol>
+
+      <span class="subsection-label" style="margin-top:2rem">Historial de ventas</span>
+      <ol class="step-list">
+
+        <li class="step">
+          <div class="step-number">8</div>
+          <div class="step-body">
+            <h3>Consultar ventas anteriores</h3>
+            <p>En el menú lateral, hacé clic en <strong>Ventas</strong>. La página muestra el historial con las columnas <strong># Venta</strong>, <strong>Fecha</strong>, <strong>Cliente</strong>, <strong>Total</strong> y <strong>Estado</strong> (Confirmada en verde, Cancelada en rojo).</p>
+            <p style="margin-top:0.5rem">Usá los filtros para acotar la búsqueda:</p>
+            <ul class="field-group">
+              <li><span class="field-name">Estado</span> — Todos los estados, Confirmada o Cancelada</li>
+              <li><span class="field-name">Todos los clientes</span> — filtrá por cliente</li>
+              <li><span class="field-name">Fecha desde / Fecha hasta</span> — rango de fechas</li>
+            </ul>
+            <p style="margin-top:0.5rem">Hacé clic en cualquier fila para ver el detalle completo: ítems, subtotal, IVA, descuentos, total y pagos registrados.</p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">9</div>
+          <div class="step-body">
+            <h3>Cancelar una venta confirmada</h3>
+            <p>Desde la pantalla de Ventas, hacé clic en la fila de la venta a cancelar. En el panel de detalle, hacé clic en <span class="btn btn-danger">Cancelar venta</span> (aparece abajo a la derecha, solo para ventas con estado "Confirmada").</p>
+            <p style="margin-top:0.5rem">Escribí el motivo en el campo <strong>Motivo de cancelación (obligatorio)</strong> y hacé clic en <span class="btn btn-danger">Confirmar cancelación</span>. La venta pasa a estado <strong>Cancelada</strong> y el stock se devuelve automáticamente.</p>
+            <div class="warning">
+              <strong>⚠ La cancelación no se puede deshacer</strong>
+              Una vez cancelada, la venta no puede reactivarse. Si hubo un error en los datos, registrá una nueva venta con la información correcta.
+            </div>
+          </div>
+        </li>
+
+      </ol>
+    </section>
+
+    <!-- ─── CONSEJOS / ERRORES COMUNES ───────────────────────────── -->
+    <section>
+      <h2>Consejos / Errores comunes</h2>
+      <ul class="tip-list">
+
+        <li class="tip">
+          <strong>El carrito se guarda automáticamente</strong>
+          <span>Si recargás o cerrás el navegador por accidente, el carrito se recupera al volver a abrir el POS. No perdés los productos que ya agregaste.</span>
+        </li>
+
+        <li class="tip">
+          <strong>⚠ Stock bajo en la búsqueda</strong>
+          <span>Si un producto aparece con el ícono <em>Stock bajo</em> en los resultados o en el carrito, su stock está por debajo del mínimo configurado. Podés agregarlo igual si el sistema lo permite, pero revisá si tenés suficiente cantidad antes de confirmar.</span>
+        </li>
+
+        <li class="tip">
+          <strong>La búsqueda necesita al menos 2 caracteres</strong>
+          <span>Con 0 o 1 caracter no aparecen resultados. Escribí el SKU, el código de barras o las primeras letras del nombre del producto.</span>
+        </li>
+
+        <li class="tip">
+          <strong>El precio se carga solo, pero podés modificarlo</strong>
+          <span>Al seleccionar un producto, el campo <strong>Precio ₲</strong> se llena con el último precio registrado en el catálogo. Si necesitás ajustar el precio para esta venta en particular, editalo directamente antes de hacer clic en <span class="btn">Agregar</span>.</span>
+        </li>
+
+        <li class="tip">
+          <strong>Descuento por ítem: primero seleccioná la fila del carrito</strong>
+          <span>La pestaña del producto en el modal de descuento solo aparece si antes hiciste clic en esa fila del carrito (queda resaltada). Si abrís <kbd>F3</kbd> sin seleccionar ninguna fila, solo vas a ver la pestaña "Cabecera".</span>
+        </li>
+
+        <li class="tip">
+          <strong>Pagos mixtos: los montos deben sumar exactamente el total</strong>
+          <span>Si cobrás parte en Efectivo y parte en Transferencia, la suma de los dos montos debe ser exactamente igual al total de la venta. El sistema no permite diferencia mayor a ₲ 0,50.</span>
+        </li>
+
+        <li class="tip">
+          <strong>La venta confirmada no se puede editar</strong>
+          <span>Una vez confirmada, la única opción es cancelarla desde la pantalla de Ventas y registrar una nueva con los datos correctos. Revisá el carrito con cuidado antes de hacer clic en <span class="btn btn-accent">Cobrar</span>.</span>
+        </li>
+
+      </ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Ante cualquier duda, contactá a tu administrador.</p>
+  </footer>
+
+
+  <a href="index.html" class="back-to-menu" style="position:fixed;bottom:24px;right:24px;z-index:999;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;">&#8592; Men&#250;</a>
+  <style>@media print{.back-to-menu{display:none}}</style>
+</body>
+</html>

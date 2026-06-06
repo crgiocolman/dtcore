@@ -1,0 +1,708 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ajustes de stock — Manual DTCore</title>
+  <style>
+    /* ─── Reset y base ───────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary:        #2563eb;
+      --primary-light:  #eff6ff;
+      --primary-dark:   #1d4ed8;
+      --text:           #1e293b;
+      --text-light:     #475569;
+      --text-muted:     #94a3b8;
+      --border:         #e2e8f0;
+      --surface:        #f8fafc;
+      --warn-bg:        #fef9c3;
+      --warn-border:    #f59e0b;
+      --warn-text:      #78350f;
+      --tip-border:     #cbd5e1;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    header {
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .brand {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    /* ─── Secciones ──────────────────────────────────────────────── */
+    section {
+      margin-bottom: 2.75rem;
+    }
+
+    section h2 {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    section p,
+    section li {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ─── Pasos ──────────────────────────────────────────────────── */
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 0.35rem;
+    }
+
+    .step-body h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+
+    .step-body p {
+      color: var(--text-light);
+    }
+
+    /* ─── Advertencia ─────────────────────────────────────────────── */
+    .warning {
+      background: var(--warn-bg);
+      border-left: 4px solid var(--warn-border);
+      border-radius: 0 6px 6px 0;
+      padding: 0.875rem 1.125rem;
+      margin: 0.9rem 0;
+      color: var(--warn-text);
+      font-size: 0.97rem;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .warning strong {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 0.15rem;
+    }
+
+    /* ─── Consejos ────────────────────────────────────────────────── */
+    .tip-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .tip {
+      padding: 0.75rem 1.1rem;
+      border-left: 3px solid var(--tip-border);
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.97rem;
+    }
+
+    .tip strong {
+      display: block;
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 0.1rem;
+    }
+
+    .tip span {
+      color: var(--text-light);
+    }
+
+    /* ─── Tabla de tipos ──────────────────────────────────────────── */
+    .type-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.97rem;
+      margin-top: 0.25rem;
+    }
+
+    .type-table th {
+      text-align: left;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0.5rem 0.875rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .type-table td {
+      padding: 0.55rem 0.875rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-light);
+      vertical-align: top;
+    }
+
+    .type-table td:first-child {
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .type-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* ─── Comparación cuándo usar ────────────────────────────────── */
+    .compare-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      margin-top: 0.25rem;
+    }
+
+    .compare-list li {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    .compare-list li .bullet {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 0.2rem;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ─── Botones inline (representación visual) ─────────────────── */
+    .btn {
+      display: inline-block;
+      padding: 0.1rem 0.55rem;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      line-height: 1.5;
+      background: var(--primary);
+      color: #fff;
+      border: 1px solid transparent;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: #fff;
+    }
+
+    .btn-sec {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    /* fix: .tip span hereda color: var(--text-light), anular para botones */
+    .tip span .btn          { color: #fff; }
+    .tip span .btn-danger   { color: #fff; }
+    .tip span .btn-sec      { color: var(--text); }
+
+    /* ─── Campos inline (representación) ─────────────────────────── */
+    .field-group {
+      margin: 0.6rem 0 0.2rem 0;
+      padding-left: 1rem;
+      border-left: 3px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .field-group p {
+      font-size: 0.95rem;
+      color: var(--text-light);
+    }
+
+    .field-group p strong {
+      color: var(--text);
+    }
+
+    /* ─── Enlace volver ──────────────────────────────────────────── */
+    .nav-back {
+      display: inline-block;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .nav-back:hover {
+      text-decoration: underline;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    /* ─── Impresión ───────────────────────────────────────────────── */
+    @media print {
+      body {
+        padding: 0;
+        max-width: 100%;
+        font-size: 12pt;
+      }
+
+      header {
+        page-break-after: avoid;
+      }
+
+      section {
+        page-break-inside: avoid;
+      }
+
+      .step {
+        page-break-inside: avoid;
+      }
+
+      .warning {
+        page-break-inside: avoid;
+      }
+
+      footer {
+        page-break-before: avoid;
+      }
+
+      a[href]::after {
+        content: none;
+      }
+
+      .nav-back {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="brand">DTCore</span>
+    <h1>Ajustes de stock</h1>
+    <p class="header-subtitle">Manual de usuario</p>
+  </header>
+
+  <main>
+
+    <!-- ─── SECCIÓN 1: ¿PARA QUÉ SIRVE? ───────────────────────────── -->
+    <section>
+      <h2>¿Para qué sirve?</h2>
+      <p>
+        Los ajustes de stock te permiten corregir diferencias entre el inventario
+        físico y lo que muestra el sistema. Usalos cuando encontrás mercadería
+        dañada, perdida, vencida, o cuando el conteo físico no coincide con lo que
+        registra el sistema.
+      </p>
+      <p style="margin-top:0.75rem;">
+        Al confirmar un ajuste, el stock se actualiza de inmediato y queda
+        un registro permanente del cambio — con fecha, motivo y usuario responsable.
+      </p>
+    </section>
+
+    <!-- ─── SECCIÓN 2: ¿CUÁNDO USAR UN AJUSTE? ─────────────────────── -->
+    <section>
+      <h2>¿Cuándo usar un ajuste?</h2>
+      <ul class="compare-list">
+        <li>
+          <span class="bullet">A</span>
+          <span>
+            <strong>Usá un ajuste</strong> cuando el stock no coincide con la realidad
+            por merma, daño, vencimiento, pérdida o un conteo físico que arrojó diferencias.
+            No hay una compra ni una venta de por medio.
+          </span>
+        </li>
+        <li>
+          <span class="bullet">C</span>
+          <span>
+            <strong>Usá una Compra</strong> cuando recibís mercadería de un proveedor
+            con factura. Las compras registran el costo y el proveedor.
+          </span>
+        </li>
+        <li>
+          <span class="bullet">V</span>
+          <span>
+            <strong>Usá una Venta</strong> cuando salís mercadería a un cliente.
+            Las ventas registran el precio de venta y generan el comprobante.
+          </span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ─── SECCIÓN 3: TIPOS DE MOTIVO ──────────────────────────────── -->
+    <section>
+      <h2>Tipos de motivo</h2>
+      <table class="type-table">
+        <thead>
+          <tr>
+            <th>Motivo en el sistema</th>
+            <th>Cuándo usarlo</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Conteo de inventario</td>
+            <td>Hiciste un conteo físico y el resultado difiere del sistema.</td>
+          </tr>
+          <tr>
+            <td>Daño / Deterioro</td>
+            <td>Mercadería en mal estado que ya no se puede vender.</td>
+          </tr>
+          <tr>
+            <td>Pérdida</td>
+            <td>Mercadería robada, extraviada o que no aparece sin explicación.</td>
+          </tr>
+          <tr>
+            <td>Vencimiento</td>
+            <td>Productos que vencieron y deben darse de baja del stock.</td>
+          </tr>
+          <tr>
+            <td>Corrección</td>
+            <td>Error en una carga anterior que hay que rectificar.</td>
+          </tr>
+          <tr>
+            <td>Otro</td>
+            <td>Cualquier otro motivo no cubierto por las opciones anteriores.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ─── SECCIÓN 4: PASOS ─────────────────────────────────────────── -->
+    <section>
+      <h2>Pasos</h2>
+      <ol class="step-list">
+
+        <li class="step">
+          <div class="step-number">1</div>
+          <div class="step-body">
+            <h3>Abrir la pantalla de Ajustes de stock</h3>
+            <p>
+              Desde el menú lateral, hacé clic en <strong>Ajustes de stock</strong>.
+              Vas a ver el listado de ajustes registrados con sus estados. Para crear
+              uno nuevo, hacé clic en el botón <span class="btn">Nuevo ajuste</span>
+              en la esquina superior derecha.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">2</div>
+          <div class="step-body">
+            <h3>Completar los datos del ajuste</h3>
+            <p>En la sección <strong>Datos del ajuste</strong> completá los siguientes campos:</p>
+            <div class="field-group">
+              <p><strong>Depósito *</strong> — elegí el depósito donde se aplica el ajuste.</p>
+              <p><strong>Fecha *</strong> — por defecto aparece la fecha de hoy. Podés cambiarla si el ajuste corresponde a otro día.</p>
+              <p><strong>Motivo *</strong> — elegí el tipo de ajuste (ver tabla de motivos). Este campo es obligatorio.</p>
+              <p><strong>Notas</strong> — opcional. Podés agregar una observación, referencia o cualquier detalle útil.</p>
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">3</div>
+          <div class="step-body">
+            <h3>Agregar productos al ajuste</h3>
+            <p>
+              En la sección <strong>Ítems</strong>, usá la fila de agregar para
+              incorporar cada producto afectado:
+            </p>
+            <div class="field-group">
+              <p><strong>Buscar producto (SKU, nombre)…</strong> — escribí al menos 2 caracteres para buscar.</p>
+              <p><strong>Unidad</strong> — seleccioná la unidad de medida del producto.</p>
+              <p>
+                <strong>Dirección</strong> — elegí:
+                <strong>Ingreso (+)</strong> para sumar unidades al stock,
+                o <strong>Egreso (−)</strong> para restar unidades.
+              </p>
+              <p><strong>Cantidad</strong> — ingresá la cantidad afectada.</p>
+              <p>
+                <strong>Costo (₲)</strong> — solo para Ingresos. Indica el costo unitario
+                de la mercadería que entra; afecta el costo promedio del producto.
+                Para Egresos este campo queda deshabilitado.
+              </p>
+              <p><strong>Nota sobre este ítem</strong> — opcional. Observación específica de este ítem.</p>
+            </div>
+            <p style="margin-top:0.6rem;">
+              Hacé clic en <span class="btn-sec btn">Agregar ítem</span> o presioná
+              <strong>Enter</strong> para añadirlo a la lista. Repetí para cada producto.
+              Para limpiar el formulario sin agregar, presioná <strong>Esc</strong>.
+            </p>
+            <div class="warning">
+              <strong>⚠ Stock insuficiente al confirmar</strong>
+              Si un ítem con dirección Egreso supera el stock disponible, el sistema
+              mostrará el error <em>"Stock insuficiente para [producto]: disponible X, solicitado Y"</em>
+              al intentar confirmar. Revisá la cantidad ingresada o el stock actual
+              antes de confirmar.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">4</div>
+          <div class="step-body">
+            <h3>Guardar como borrador (opcional)</h3>
+            <p>
+              Si necesitás interrumpir la carga y retomar después, hacé clic en
+              <span class="btn btn-sec">Guardar como borrador</span>.
+              El ajuste queda guardado en estado <strong>Borrador</strong> y
+              podés abrirlo desde el listado para continuar editándolo.
+              <strong>Un borrador no afecta el stock</strong>.
+            </p>
+            <p style="margin-top:0.5rem;">
+              Si ya tenés el borrador abierto y modificás los datos de cabecera,
+              aparecerá el botón <span class="btn btn-sec">Guardar cambios</span>
+              para guardar esos ajustes sin salir de la pantalla.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">5</div>
+          <div class="step-body">
+            <h3>Confirmar el ajuste</h3>
+            <p>
+              Cuando el ajuste esté completo, hacé clic en
+              <span class="btn">Confirmar ajuste</span>.
+              Aparece un modal con el resumen de todos los ítems y la advertencia
+              <em>"Esta acción no se puede deshacer"</em>. Revisá que todo sea correcto
+              y hacé clic en <span class="btn">Confirmar ajuste</span> para aplicar
+              los cambios. El stock se actualiza de inmediato.
+            </p>
+            <div class="warning">
+              <strong>⚠ El ajuste confirmado no se puede editar</strong>
+              Una vez confirmado, el ajuste pasa al estado <strong>Confirmado</strong>
+              y no permite modificar datos ni ítems. Si cometiste un error, podés
+              cancelar el ajuste (ver paso 7) — el sistema genera movimientos
+              compensatorios automáticamente.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">6</div>
+          <div class="step-body">
+            <h3>Consultar ajustes anteriores</h3>
+            <p>
+              En la pantalla <strong>Ajustes de stock</strong> se muestra el listado
+              con columnas <em># Ajuste</em>, <em>Depósito</em>, <em>Fecha</em>,
+              <em>Motivo</em> y <em>Estado</em>. Podés filtrar por Estado
+              (Borrador, Confirmado, Cancelado), por Depósito y por rango de fechas
+              (Fecha desde — Fecha hasta). Hacé clic en cualquier fila para abrir
+              el detalle del ajuste y ver sus ítems e historial de cambios.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">7</div>
+          <div class="step-body">
+            <h3>Cancelar un ajuste confirmado</h3>
+            <p>
+              Desde el detalle de un ajuste confirmado, hacé clic en
+              <span class="btn btn-danger">Cancelar ajuste</span>. Se abre un
+              formulario que te pide el <strong>Motivo de cancelación</strong>
+              (campo obligatorio). Escribí el motivo y hacé clic en
+              <span class="btn btn-danger">Cancelar ajuste</span> para confirmar.
+            </p>
+            <p style="margin-top:0.5rem;">
+              El sistema genera movimientos compensatorios automáticamente para
+              revertir el efecto del ajuste en el stock.
+            </p>
+            <div class="warning">
+              <strong>⚠ La cancelación no se puede deshacer</strong>
+              Una vez cancelado, el ajuste pasa al estado <strong>Cancelado</strong>
+              de forma permanente. No es posible reactivarlo. Si necesitás volver a
+              aplicar el mismo ajuste, creá uno nuevo.
+            </div>
+          </div>
+        </li>
+
+      </ol>
+    </section>
+
+    <!-- ─── SECCIÓN 5: CONSEJOS / ERRORES COMUNES ────────────────────── -->
+    <section>
+      <h2>Consejos / Errores comunes</h2>
+      <ul class="tip-list">
+
+        <li class="tip">
+          <strong>Ingreso vs. Egreso</strong>
+          <span>
+            <strong>Ingreso (+)</strong> suma unidades al stock — usalo cuando descubrís
+            que tenés más mercadería de la que figura en el sistema.
+            <strong>Egreso (−)</strong> resta unidades — usalo para mercadería dañada,
+            perdida o vencida que ya no está disponible.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>El costo en ingresos afecta el costo promedio</strong>
+          <span>
+            Cuando hacés un Ingreso, el campo <em>Costo (₲)</em> entra al cálculo del
+            costo promedio ponderado del producto. Si lo dejás vacío o en cero, puede
+            distorsionar el costo promedio. Ingresá el costo real de la mercadería.
+            Para Egresos el costo no se pide — no afecta el promedio.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>El borrador no cambia el stock</strong>
+          <span>
+            Un ajuste en estado <em>Borrador</em> no modifica el inventario.
+            El stock solo se actualiza al hacer clic en
+            <span class="btn">Confirmar ajuste</span> y confirmar el modal.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Eliminar un borrador</strong>
+          <span>
+            Si creaste un borrador por error o ya no lo necesitás, podés eliminarlo
+            desde el detalle con el botón
+            <span class="btn btn-danger">Eliminar borrador</span>
+            (disponible solo en estado Borrador). Esta acción es definitiva:
+            los datos del borrador no se pueden recuperar.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>"Cantidad inválida" al agregar un ítem</strong>
+          <span>
+            Asegurate de que el campo <em>Cantidad</em> tenga un número mayor a cero.
+            El sistema no acepta cero ni valores negativos en ese campo.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>El botón "Confirmar ajuste" aparece deshabilitado</strong>
+          <span>
+            Para habilitarlo debés completar los tres campos obligatorios
+            (<em>Depósito</em>, <em>Fecha</em>, <em>Motivo</em>) y agregar al menos
+            un ítem a la lista.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Historial de cambios</strong>
+          <span>
+            Al abrir un ajuste guardado, podés ver la sección <em>Historial</em> en la
+            parte inferior de la pantalla. Ahí figura quién creó, confirmó o canceló
+            el ajuste y en qué momento.
+          </span>
+        </li>
+
+      </ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <a class="nav-back" href="index.html">← Volver al índice</a>
+    <p>Ante cualquier duda, contactá a tu administrador.</p>
+  </footer>
+
+
+  <a href="index.html" class="back-to-menu" style="position:fixed;bottom:24px;right:24px;z-index:999;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;">&#8592; Men&#250;</a>
+  <style>@media print{.back-to-menu{display:none}}</style>
+</body>
+</html>

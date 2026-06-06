@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!--
+    INSTRUCCIONES PARA USAR ESTA PLANTILLA
+    =======================================
+    1. Duplicar este archivo con el nombre del módulo (ej: pos.html, compras.html)
+    2. Reemplazar todos los marcadores [EN MAYÚSCULA] con el contenido real
+    3. Agregar/quitar pasos y consejos según el módulo
+    4. Probar impresión con Ctrl+P antes de distribuir
+  -->
+  <title>[NOMBRE DEL MÓDULO] — Manual DTCore</title>
+  <style>
+    /* ─── Reset y base ───────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary:        #2563eb;
+      --primary-light:  #eff6ff;
+      --primary-dark:   #1d4ed8;
+      --text:           #1e293b;
+      --text-light:     #475569;
+      --text-muted:     #94a3b8;
+      --border:         #e2e8f0;
+      --surface:        #f8fafc;
+      --warn-bg:        #fef9c3;
+      --warn-border:    #f59e0b;
+      --warn-text:      #78350f;
+      --tip-border:     #cbd5e1;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    header {
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .brand {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    /* ─── Secciones ──────────────────────────────────────────────── */
+    section {
+      margin-bottom: 2.75rem;
+    }
+
+    section h2 {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    section p,
+    section li {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ─── Pasos ──────────────────────────────────────────────────── */
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* Necesario para que el color se imprima */
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 0.35rem;
+    }
+
+    .step-body h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+
+    .step-body p {
+      color: var(--text-light);
+    }
+
+    /* ─── Nota de advertencia ─────────────────────────────────────── */
+    .warning {
+      background: var(--warn-bg);
+      border-left: 4px solid var(--warn-border);
+      border-radius: 0 6px 6px 0;
+      padding: 0.875rem 1.125rem;
+      margin: 0.9rem 0;
+      color: var(--warn-text);
+      font-size: 0.97rem;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .warning strong {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 0.15rem;
+    }
+
+    /* ─── Consejos / errores ──────────────────────────────────────── */
+    .tip-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .tip {
+      padding: 0.75rem 1.1rem;
+      border-left: 3px solid var(--tip-border);
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.97rem;
+    }
+
+    .tip strong {
+      display: block;
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 0.1rem;
+    }
+
+    .tip span {
+      color: var(--text-light);
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    /* ─── Impresión ───────────────────────────────────────────────── */
+    @media print {
+      body {
+        padding: 0;
+        max-width: 100%;
+        font-size: 12pt;
+      }
+
+      header {
+        page-break-after: avoid;
+      }
+
+      section {
+        page-break-inside: avoid;
+      }
+
+      .step {
+        page-break-inside: avoid;
+      }
+
+      .warning {
+        page-break-inside: avoid;
+      }
+
+      footer {
+        page-break-before: avoid;
+      }
+
+      /* Mostrar URLs al imprimir */
+      a[href]::after {
+        content: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─── HEADER ──────────────────────────────────────────────────── -->
+  <header>
+    <span class="brand">DTCore</span>
+    <h1>[NOMBRE DEL MÓDULO]</h1>
+    <p class="header-subtitle">Manual de usuario</p>
+  </header>
+
+  <main>
+
+    <!-- ─── SECCIÓN 1: ¿PARA QUÉ SIRVE? ───────────────────────────── -->
+    <section>
+      <h2>¿Para qué sirve?</h2>
+      <!--
+        Describí en 2-3 oraciones qué hace este módulo y cuándo lo usa el operador.
+        Ejemplo:
+          <p>El módulo de Compras te permite registrar las compras realizadas a
+          tus proveedores. Cada compra actualiza el stock automáticamente y guarda
+          el costo promedio de cada producto.</p>
+      -->
+      <p>[DESCRIPCIÓN DEL MÓDULO — 2 a 3 oraciones simples]</p>
+    </section>
+
+    <!-- ─── SECCIÓN 2: PASOS ─────────────────────────────────────── -->
+    <section>
+      <h2>Pasos</h2>
+      <ol class="step-list">
+
+        <!--
+          PLANTILLA DE UN PASO:
+
+          <li class="step">
+            <div class="step-number">N</div>
+            <div class="step-body">
+              <h3>Título del paso</h3>
+              <p>Descripción clara de qué hacer. Mencionar dónde hacer click, qué campo completar, qué tecla presionar.</p>
+              [ADVERTENCIA OPCIONAL — ver bloque .warning más abajo]
+            </div>
+          </li>
+        -->
+
+        <li class="step">
+          <div class="step-number">1</div>
+          <div class="step-body">
+            <h3>[TÍTULO DEL PASO 1]</h3>
+            <p>[Descripción de qué hacer en este paso. Ser concreto: "Hacé click en el botón azul 'Nuevo' en la esquina superior derecha."]</p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">2</div>
+          <div class="step-body">
+            <h3>[TÍTULO DEL PASO 2]</h3>
+            <p>[Descripción del paso.]</p>
+            <!-- Ejemplo de advertencia dentro de un paso: -->
+            <div class="warning">
+              <strong>⚠ [TÍTULO DE ADVERTENCIA]</strong>
+              [Explicar qué puede salir mal y cómo evitarlo. Ej: "Si el stock queda en cero, el sistema no permitirá vender ese producto."]
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">3</div>
+          <div class="step-body">
+            <h3>[TÍTULO DEL PASO 3]</h3>
+            <p>[Descripción del paso.]</p>
+          </div>
+        </li>
+
+        <!--
+          Agregar o quitar pasos según el módulo.
+          Copiar y pegar el bloque <li class="step">...</li> para cada paso adicional.
+        -->
+
+      </ol>
+    </section>
+
+    <!-- ─── SECCIÓN 3: CONSEJOS / ERRORES COMUNES ───────────────────── -->
+    <section>
+      <h2>Consejos / Errores comunes</h2>
+      <ul class="tip-list">
+
+        <!--
+          PLANTILLA DE UN CONSEJO O ERROR COMÚN:
+
+          <li class="tip">
+            <strong>[Título del consejo o error]</strong>
+            <span>[Explicación de qué hacer o cómo resolverlo.]</span>
+          </li>
+        -->
+
+        <li class="tip">
+          <strong>[CONSEJO 1: título breve]</strong>
+          <span>[Explicación práctica del consejo.]</span>
+        </li>
+
+        <li class="tip">
+          <strong>[ERROR COMÚN: descripción]</strong>
+          <span>[Cómo identificarlo y qué hacer para solucionarlo.]</span>
+        </li>
+
+        <li class="tip">
+          <strong>[CONSEJO O ADVERTENCIA ADICIONAL]</strong>
+          <span>[Explicación.]</span>
+        </li>
+
+      </ul>
+    </section>
+
+  </main>
+
+  <!-- ─── FOOTER ──────────────────────────────────────────────────── -->
+  <footer>
+    <p>Ante cualquier duda, contactá a tu administrador.</p>
+  </footer>
+
+</body>
+</html>

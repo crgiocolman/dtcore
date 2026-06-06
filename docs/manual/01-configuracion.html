@@ -1,0 +1,663 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configuración y Monedas — Manual DTCore</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary:        #2563eb;
+      --primary-light:  #eff6ff;
+      --primary-dark:   #1d4ed8;
+      --text:           #1e293b;
+      --text-light:     #475569;
+      --text-muted:     #94a3b8;
+      --border:         #e2e8f0;
+      --surface:        #f8fafc;
+      --warn-bg:        #fef9c3;
+      --warn-border:    #f59e0b;
+      --warn-text:      #78350f;
+      --tip-border:     #cbd5e1;
+      --success-bg:     #f0fdf4;
+      --success-border: #22c55e;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    header {
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .brand {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    /* ─── Secciones ──────────────────────────────────────────────── */
+    section {
+      margin-bottom: 2.75rem;
+    }
+
+    section h2 {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    section p {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    section p + p {
+      margin-top: 0.75rem;
+    }
+
+    /* ─── Pasos ──────────────────────────────────────────────────── */
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 0.35rem;
+    }
+
+    .step-body h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.3rem;
+    }
+
+    .step-body p {
+      color: var(--text-light);
+    }
+
+    .step-body p + p {
+      margin-top: 0.5rem;
+    }
+
+    /* ─── Campo UI (nombre de campo tal como aparece en pantalla) ── */
+    .field {
+      font-weight: 600;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1em 0.4em;
+      font-size: 0.93em;
+      white-space: nowrap;
+    }
+
+    /* ─── Botón UI ───────────────────────────────────────────────── */
+    .btn {
+      font-weight: 600;
+      color: var(--primary);
+      background: var(--primary-light);
+      border: 1px solid var(--primary);
+      border-radius: 4px;
+      padding: 0.1em 0.45em;
+      font-size: 0.93em;
+      white-space: nowrap;
+    }
+
+    /* ─── Lista dentro de un paso ─────────────────────────────────── */
+    .field-list {
+      list-style: none;
+      margin-top: 0.65rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .field-list li {
+      padding-left: 1rem;
+      border-left: 2px solid var(--border);
+      color: var(--text-light);
+      font-size: 0.97rem;
+      line-height: 1.55;
+    }
+
+    /* ─── Advertencia ─────────────────────────────────────────────── */
+    .warning {
+      background: var(--warn-bg);
+      border-left: 4px solid var(--warn-border);
+      border-radius: 0 6px 6px 0;
+      padding: 0.875rem 1.125rem;
+      margin: 0.9rem 0;
+      color: var(--warn-text);
+      font-size: 0.97rem;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .warning strong {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 0.2rem;
+    }
+
+    /* ─── Placeholder de captura ──────────────────────────────────── */
+    .capture {
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      padding: 1.25rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      background: var(--surface);
+      margin: 0.9rem 0;
+      font-style: italic;
+    }
+
+    /* ─── Consejos / errores ──────────────────────────────────────── */
+    .tip-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .tip {
+      padding: 0.75rem 1.1rem;
+      border-left: 3px solid var(--tip-border);
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.97rem;
+    }
+
+    .tip strong {
+      display: block;
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 0.15rem;
+    }
+
+    .tip span {
+      color: var(--text-light);
+      line-height: 1.6;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* ─── Impresión ───────────────────────────────────────────────── */
+    @media print {
+      body {
+        padding: 0;
+        max-width: 100%;
+        font-size: 12pt;
+      }
+
+      header { page-break-after: avoid; }
+      section { page-break-inside: avoid; }
+      .step   { page-break-inside: avoid; }
+      .warning { page-break-inside: avoid; }
+      footer  { page-break-before: avoid; }
+      a[href]::after { content: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="brand">DTCore</span>
+    <h1>Configuración y Monedas</h1>
+    <p class="header-subtitle">Manual de usuario · Solo administrador</p>
+  </header>
+
+  <main>
+
+    <!-- ════════════════════════════════════════════════════════════
+         SECCIÓN 1: ¿PARA QUÉ SIRVE?
+         ════════════════════════════════════════════════════════════ -->
+    <section>
+      <h2>¿Para qué sirve?</h2>
+      <p>
+        La <strong>Configuración</strong> es el primer lugar que tenés que revisar antes de empezar
+        a operar. Acá ajustás el nombre del negocio, el IVA que aplica por defecto a los productos
+        nuevos y cómo se comporta el sistema con el stock. Son ajustes que se hacen una sola vez
+        al inicio y rara vez se vuelven a tocar.
+      </p>
+      <p>
+        Las <strong>Monedas</strong> te permiten habilitar el dólar (USD), el real (BRL) u otras
+        monedas para registrar compras o ventas en esa divisa. Para que funcione, también tenés que
+        cargar el <em>tipo de cambio del día</em>: cuántos guaraníes vale una unidad de esa moneda.
+        Esto se actualiza cada vez que cambia la cotización.
+      </p>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════
+         SECCIÓN 2: PARTE 1 — CONFIGURACIÓN GENERAL
+         ════════════════════════════════════════════════════════════ -->
+    <section>
+      <h2>Parte 1 — Configuración general</h2>
+      <ol class="step-list">
+
+        <li class="step">
+          <div class="step-number">1</div>
+          <div class="step-body">
+            <h3>Ir a la pantalla de Configuración</h3>
+            <p>
+              En el menú lateral (la barra de la izquierda), buscá la sección
+              <strong>Configuración</strong> y hacé click en <strong>Settings</strong>.
+            </p>
+            <img src="img/conf-01-settings-general.png" alt="Vista general de Settings — tarjetas Negocio, Moneda, Ventas y Stock" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+            <p>
+              La pantalla está dividida en cuatro tarjetas independientes. Cada tarjeta tiene
+              su propio botón <span class="btn">Guardar</span> al pie.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">2</div>
+          <div class="step-body">
+            <h3>Tarjeta "Negocio" — datos del comercio</h3>
+            <p>Revisá y completá los dos campos de esta tarjeta:</p>
+            <ul class="field-list">
+              <li>
+                <span class="field">Business Name</span> — el nombre del negocio tal como
+                aparece en el encabezado del sistema. Ejemplo: <em>"Almacén Central"</em>.
+              </li>
+              <li>
+                <span class="field">Business Document</span> — tu RUC u otro número de
+                identificación fiscal. Podés dejarlo en blanco si no lo necesitás.
+              </li>
+            </ul>
+            <p>
+              Cuando termines, hacé click en <span class="btn">Guardar</span>
+              al pie de esta tarjeta.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">3</div>
+          <div class="step-body">
+            <h3>Tarjeta "Moneda" — moneda principal</h3>
+            <p>
+              El campo <span class="field">Default Currency Code</span> muestra la moneda
+              principal del sistema. Para negocios en Paraguay debe decir siempre
+              <strong>PYG</strong> (Guaraní).
+            </p>
+            <div class="warning">
+              <strong>⚠ No cambies este campo</strong>
+              Modificar la moneda principal puede alterar todos los cálculos del sistema.
+              Solo tocá este valor si tu administrador lo indica expresamente.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">4</div>
+          <div class="step-body">
+            <h3>Tarjeta "Ventas" — IVA y cliente obligatorio</h3>
+            <p>Hay dos opciones para configurar según tu operativa:</p>
+            <ul class="field-list">
+              <li>
+                <span class="field">Sale Requires Customer</span> (casilla de verificación) —
+                si la <strong>activás</strong>, el sistema pedirá que selecciones un cliente
+                antes de finalizar cada venta. Útil si querés llevar un registro de a quién
+                le vendés. Si la <strong>desactivás</strong>, podés cobrar sin registrar
+                el cliente (venta anónima).
+              </li>
+              <li>
+                <span class="field">Default Tax Rate</span> — el porcentaje de IVA que el
+                sistema asigna automáticamente al crear un producto nuevo. En Paraguay los
+                valores válidos son <strong>0</strong> (exento), <strong>5</strong> o
+                <strong>10</strong> (porcentaje). El 10% es el más habitual para
+                artículos de venta general.
+              </li>
+            </ul>
+            <div class="warning">
+              <strong>⚠ El IVA por defecto solo afecta a productos nuevos</strong>
+              Cambiar este valor no modifica el IVA de los productos que ya existen en el
+              catálogo. Solo aplica a los que crees a partir de ese momento.
+            </div>
+            <p>Hacé click en <span class="btn">Guardar</span> al pie de esta tarjeta.</p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">5</div>
+          <div class="step-body">
+            <h3>Tarjeta "Stock" — stock negativo y alerta de stock bajo</h3>
+            <ul class="field-list">
+              <li>
+                <span class="field">Allow Negative Stock</span> (casilla de verificación) —
+                si la <strong>activás</strong>, el sistema permite registrar una venta aunque
+                no haya stock suficiente (el stock puede quedar en negativo). Si la
+                <strong>desactivás</strong>, el sistema bloquea la venta y muestra un error
+                cuando el stock no alcanza.
+              </li>
+              <li>
+                <span class="field">Low Stock Default Threshold</span> — la cantidad de
+                unidades a partir de la cual el sistema muestra una alerta de "stock bajo".
+                Ejemplo: si ponés <strong>5</strong>, cuando un producto tenga 5 o menos
+                unidades el sistema lo marcará con alerta.
+              </li>
+            </ul>
+            <div class="warning">
+              <strong>⚠ Cuidado con "Allow Negative Stock"</strong>
+              Tener esta opción activada permite vender más de lo que hay en el depósito.
+              Si usás esta función, revisá periódicamente el inventario y hacé ajustes
+              de stock para regularizar las diferencias.
+            </div>
+            <p>Hacé click en <span class="btn">Guardar</span> al pie de esta tarjeta.</p>
+          </div>
+        </li>
+
+      </ol>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════
+         SECCIÓN 3: PARTE 2 — MONEDAS
+         ════════════════════════════════════════════════════════════ -->
+    <section>
+      <h2>Parte 2 — Monedas y tipos de cambio</h2>
+      <ol class="step-list">
+
+        <li class="step">
+          <div class="step-number">1</div>
+          <div class="step-body">
+            <h3>Ir a la pantalla de Monedas</h3>
+            <p>
+              En el menú lateral, en la sección <strong>Configuración</strong>,
+              hacé click en <strong>Monedas</strong>.
+            </p>
+            <img src="img/conf-02-monedas-lista.png" alt="Pantalla Monedas — lista de monedas y panel de tipos de cambio" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+            <p>
+              La pantalla tiene dos paneles: a la izquierda, las monedas disponibles;
+              a la derecha, el historial de tipos de cambio de la moneda seleccionada.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">2</div>
+          <div class="step-body">
+            <h3>Activar o desactivar una moneda extranjera</h3>
+            <p>
+              Cada moneda muestra un interruptor (toggle) a la derecha de su tarjeta.
+              Cuando el interruptor está en <strong>azul</strong>, la moneda está activa y
+              aparece disponible en las pantallas de compras y ventas. Cuando está
+              <strong>apagado</strong>, la moneda queda oculta.
+            </p>
+            <p>
+              Hacé click en el interruptor para activar o desactivar la moneda.
+              El sistema confirma el cambio con un mensaje breve.
+            </p>
+            <img src="img/conf-03-usd-toggle-activa.png" alt="Tarjeta USD con toggle activo" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+            <div class="warning">
+              <strong>⚠ PYG no se puede desactivar</strong>
+              El Guaraní (PYG) es la moneda base del sistema. Su tarjeta muestra
+              la etiqueta <em>"Base"</em> y el interruptor está bloqueado.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">3</div>
+          <div class="step-body">
+            <h3>Registrar el tipo de cambio del día</h3>
+            <p>
+              Hacé click sobre la tarjeta de la moneda (por ejemplo, <strong>USD</strong>)
+              para seleccionarla. En el panel de la derecha, hacé click en el botón azul
+              <span class="btn">Nueva tasa</span>.
+            </p>
+            <img src="img/conf-04-modal-tipo-cambio.png" alt="Modal Nuevo tipo de cambio USD" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+            <p>Se abre un formulario con tres campos:</p>
+            <ul class="field-list">
+              <li>
+                <span class="field">Tasa (USD/PYG)</span> — cuántos guaraníes vale
+                1 dólar (o 1 unidad de la moneda seleccionada). Ejemplo:
+                <strong>7350</strong> significa que 1&nbsp;USD&nbsp;=&nbsp;7.350&nbsp;Gs.
+              </li>
+              <li>
+                <span class="field">Fecha de vigencia</span> — la fecha desde la que
+                aplica esta tasa. Por defecto el sistema pone la fecha de hoy.
+                Podés cambiarlo si querés cargar una tasa retroactiva.
+              </li>
+              <li>
+                <span class="field">Notas</span> (opcional) — podés anotar de dónde
+                salió el valor. Ejemplo: <em>"Cotización BCP mediodía"</em>.
+              </li>
+            </ul>
+            <p>
+              Hacé click en <span class="btn">Guardar</span> para confirmar.
+              La nueva tasa aparece en la parte superior de la tabla.
+            </p>
+            <div class="warning">
+              <strong>⚠ Cargá la tasa antes de registrar operaciones del día</strong>
+              El sistema usa la tasa más reciente cuya fecha de vigencia sea anterior
+              o igual a la fecha de la transacción. Si no hay ninguna tasa cargada,
+              no podrás completar compras ni ventas en esa moneda.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">4</div>
+          <div class="step-body">
+            <h3>Editar o eliminar una tasa existente</h3>
+            <p>
+              En la tabla de tipos de cambio, cada fila puede mostrar dos íconos al final:
+              un <strong>lápiz</strong> (editar) y un <strong>tacho</strong> (eliminar).
+              Estos íconos solo aparecen en la fila de la tasa más reciente, y únicamente
+              si esa tasa no fue utilizada en ninguna compra o venta todavía.
+            </p>
+            <p>
+              Al hacer click en el lápiz se abre un formulario que permite corregir
+              el valor de la tasa y las notas. La fecha de vigencia no se puede cambiar
+              desde la edición — si la fecha también estaba mal, eliminá la tasa y
+              cargá una nueva.
+            </p>
+            <div class="warning">
+              <strong>⚠ Las tasas usadas en transacciones no se pueden editar ni eliminar</strong>
+              Si una tasa ya fue utilizada en una compra o venta confirmada, los íconos
+              de editar y eliminar no aparecen para esa fila. Esto es intencional: el
+              sistema preserva los valores históricos para que los reportes pasados
+              no cambien. Si cometiste un error en la cotización, cargá una nueva tasa
+              con la fecha y el valor correctos — las transacciones futuras usarán
+              la nueva tasa.
+            </div>
+          </div>
+        </li>
+
+      </ol>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════
+         SECCIÓN 4: CONSEJOS / ERRORES COMUNES
+         ════════════════════════════════════════════════════════════ -->
+    <section>
+      <h2>Consejos / Errores comunes</h2>
+      <ul class="tip-list">
+
+        <li class="tip">
+          <strong>Guardá sección por sección en la Configuración</strong>
+          <span>
+            La pantalla de Settings tiene un botón <em>Guardar</em> separado por cada tarjeta
+            (Negocio, Moneda, Ventas, Stock). Si editás varios bloques y solo guardás uno,
+            los demás cambios se pierden al salir o recargar la pantalla.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>IVA en Paraguay: 0%, 5% o 10%</strong>
+          <span>
+            El 10% aplica a la mayoría de artículos de venta general. El 5% aplica a
+            algunos alimentos y medicamentos. El 0% (exento) aplica a alimentos de
+            canasta básica, entre otros. Consultá con tu contador si tenés dudas sobre
+            qué tasa corresponde a tu rubro.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Actualizá el tipo de cambio todos los días que operés en moneda extranjera</strong>
+          <span>
+            Si no cargás una tasa nueva, el sistema usa la última registrada,
+            que puede estar desactualizada. Se recomienda cargar la cotización
+            al inicio de cada jornada antes de registrar la primera compra o venta en esa moneda.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Error: "No se pudo cargar la configuración"</strong>
+          <span>
+            El sistema no puede conectarse al servidor. Verificá que estés dentro de la
+            red WiFi del local y que la PC-servidor esté encendida. Si el problema
+            persiste, contactá a tu administrador.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Error: "No se pudo cargar la lista de monedas"</strong>
+          <span>
+            Mismo origen que el error anterior: problema de conexión con el servidor.
+            Verificá la red y volvé a intentarlo en unos minutos.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Los botones de editar/eliminar no aparecen en una tasa de cambio</strong>
+          <span>
+            Significa que esa tasa ya fue usada en al menos una compra o venta, o que
+            no es la más reciente. Solución: cargá una nueva tasa con el valor correcto.
+            Las transacciones anteriores no se modifican — eso es correcto, ya que
+            los reportes históricos deben mantener los valores originales.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>La moneda USD aparece en compras pero no en ventas (o viceversa)</strong>
+          <span>
+            Verificá que la moneda esté activa (interruptor en azul en la pantalla
+            de Monedas) y que haya al menos una tasa de cambio cargada.
+            Si falta cualquiera de las dos cosas, la moneda no estará disponible.
+          </span>
+        </li>
+
+      </ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Ante cualquier duda, contactá a tu administrador.</p>
+  </footer>
+
+
+  <!-- Lightbox -->
+  <div id="lightbox" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;cursor:zoom-out;" role="dialog" aria-modal="true">
+    <span id="lightbox-close" style="position:absolute;top:16px;right:24px;color:#fff;font-size:2.5rem;line-height:1;cursor:pointer;user-select:none;">&times;</span>
+    <img id="lightbox-img" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);cursor:default;">
+  </div>
+  <style>
+    img[src^="img/"] { cursor: zoom-in; transition: opacity .15s; }
+    img[src^="img/"]:hover { opacity: .9; }
+    @media print { #lightbox { display: none !important; } }
+  </style>
+  <script>
+    (function () {
+      var lb    = document.getElementById('lightbox');
+      var lbImg = document.getElementById('lightbox-img');
+      function openLb(img) {
+        lbImg.src = img.src; lbImg.alt = img.alt;
+        lb.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+      }
+      function closeLb() {
+        lb.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+      document.querySelectorAll('img[src^="img/"]').forEach(function (img) {
+        img.addEventListener('click', function () { openLb(img); });
+      });
+      lb.addEventListener('click', function (e) { if (e.target !== lbImg) closeLb(); });
+      document.getElementById('lightbox-close').addEventListener('click', closeLb);
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeLb(); });
+    })();
+  </script>
+
+  <a href="index.html" class="back-to-menu" style="position:fixed;bottom:24px;right:24px;z-index:999;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;">&#8592; Men&#250;</a>
+  <style>@media print{.back-to-menu{display:none}}</style>
+</body>
+</html>

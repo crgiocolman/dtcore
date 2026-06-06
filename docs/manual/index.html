@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manuales de usuario — DTCore</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary:       #2563eb;
+      --primary-light: #eff6ff;
+      --text:          #1e293b;
+      --text-light:    #475569;
+      --text-muted:    #94a3b8;
+      --border:        #e2e8f0;
+      --surface:       #f8fafc;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #ffffff;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    header {
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px solid var(--primary);
+    }
+
+    .brand {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    header h1 {
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 0.25rem;
+      line-height: 1.2;
+    }
+
+    header p {
+      margin-top: 0.5rem;
+      color: var(--text-light);
+      font-size: 1rem;
+    }
+
+    /* ─── Secciones del índice ───────────────────────────────────── */
+    .section {
+      margin-bottom: 2.25rem;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+
+    /* ─── Cards de módulo ────────────────────────────────────────── */
+    .module-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .module-card {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.875rem 1.125rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .module-card:hover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .module-card:hover .module-name {
+      color: var(--primary);
+    }
+
+    .module-icon {
+      flex-shrink: 0;
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      background: var(--primary);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .module-info {
+      flex: 1;
+    }
+
+    .module-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .module-desc {
+      font-size: 0.9rem;
+      color: var(--text-light);
+      margin-top: 0.1rem;
+    }
+
+    .module-arrow {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    /* Estado: manual no disponible todavía */
+    .module-card.pending {
+      opacity: 0.55;
+      pointer-events: none;
+      cursor: default;
+    }
+
+    .pending .module-icon {
+      background: var(--text-muted);
+    }
+
+    .badge-pending {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      flex-shrink: 0;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* ─── Guía Rápida ───────────────────────────────────────────────── */
+    .quick-guide {
+      padding-bottom: 2rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .subsection-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-light);
+      margin-top: 1.5rem;
+      margin-bottom: 0.65rem;
+    }
+
+    /* Pasos */
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.65rem;
+    }
+
+    .step-card {
+      display: flex;
+      gap: 0.7rem;
+      align-items: flex-start;
+      padding: 0.8rem 0.9rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 0.05rem;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+
+    .step-desc {
+      font-size: 0.82rem;
+      color: var(--text-light);
+      line-height: 1.4;
+    }
+
+    /* Conceptos */
+    .concepts-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.65rem;
+    }
+
+    .concept-card {
+      padding: 0.875rem 1rem;
+      background: var(--primary-light);
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+    }
+
+    .concept-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 0.3rem;
+    }
+
+    .concept-desc {
+      font-size: 0.82rem;
+      color: var(--text-light);
+      line-height: 1.4;
+    }
+
+    /* Consejos */
+    .tips-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .tips-list li {
+      font-size: 0.92rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    @media (max-width: 620px) {
+      .steps-grid,
+      .concepts-grid,
+      .flows-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ─── Flujos ─────────────────────────────────────────────────── */
+    .flows-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .flow-panel {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .flow-header {
+      padding: 0.55rem 0.9rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .flow-panel--setup .flow-header {
+      background: #f0fdf4;
+      border-bottom: 1px solid #bbf7d0;
+      color: #166534;
+    }
+
+    .flow-panel--daily .flow-header {
+      background: var(--primary-light);
+      border-bottom: 1px solid #bfdbfe;
+      color: var(--primary);
+    }
+
+    .flow-steps {
+      padding: 0.65rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .flow-panel--setup .step-number {
+      background: #16a34a;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ─── Impresión ───────────────────────────────────────────────── */
+    @media print {
+      body {
+        padding: 0;
+        max-width: 100%;
+        font-size: 12pt;
+      }
+
+      .module-card:hover {
+        border-color: var(--border);
+        background: var(--surface);
+      }
+
+      .module-card.pending {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="brand">DTCore</span>
+    <h1>Manuales de usuario</h1>
+    <p>Seleccioná el módulo sobre el que necesitás ayuda.</p>
+  </header>
+
+  <main>
+
+    <!-- ─── GUÍA RÁPIDA ─────────────────────────────────────────── -->
+    <div class="section quick-guide">
+      <p class="section-label">Guía Rápida</p>
+
+      <div class="flows-grid">
+
+        <div class="flow-panel flow-panel--setup">
+          <div class="flow-header">Primera vez que usás el sistema</div>
+          <div class="flow-steps">
+            <div class="step-card">
+              <div class="step-number">1</div>
+              <div>
+                <div class="step-title">Crear categorías y productos</div>
+                <div class="step-desc">Ir a Productos → Nuevo. Completar nombre, unidad de medida y precio de venta.</div>
+              </div>
+            </div>
+            <div class="step-card">
+              <div class="step-number">2</div>
+              <div>
+                <div class="step-title">Cargar stock inicial</div>
+                <div class="step-desc">Si ya tenés mercadería en tu negocio, cargá la cantidad y costo actual de cada producto. Esto se hace una sola vez.</div>
+              </div>
+            </div>
+            <div class="step-card">
+              <div class="step-number">3</div>
+              <div>
+                <div class="step-title">Registrar una venta</div>
+                <div class="step-desc">Ir a Ventas (o POS). Buscar el producto, indicar cantidad y confirmar.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-panel flow-panel--daily">
+          <div class="flow-header">Operación del día a día</div>
+          <div class="flow-steps">
+            <div class="step-card">
+              <div class="step-number">1</div>
+              <div>
+                <div class="step-title">Registrar una compra</div>
+                <div class="step-desc">Cuando recibís mercadería de un proveedor, registrala en Compras → Nueva compra. El stock se actualiza solo al confirmar.</div>
+              </div>
+            </div>
+            <div class="step-card">
+              <div class="step-number">2</div>
+              <div>
+                <div class="step-title">Registrar una venta</div>
+                <div class="step-desc">Ir a Ventas (o POS). Buscar el producto, indicar cantidad y confirmar.</div>
+              </div>
+            </div>
+            <div class="step-card">
+              <div class="step-number">3</div>
+              <div>
+                <div class="step-title">Ver reportes</div>
+                <div class="step-desc">Revisá ventas del día, stock actual y ganancia estimada en Reportes.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <p class="subsection-label">Conceptos clave</p>
+      <div class="concepts-grid">
+        <div class="concept-card">
+          <div class="concept-title">Costo Promedio (CPP)</div>
+          <div class="concept-desc">El sistema calcula cuánto cuesta en promedio cada unidad considerando todas las compras.</div>
+        </div>
+        <div class="concept-card">
+          <div class="concept-title">Ajuste de stock</div>
+          <div class="concept-desc">Para cargar inventario inicial o corregir diferencias con el stock físico.</div>
+        </div>
+        <div class="concept-card">
+          <div class="concept-title">Cancelación</div>
+          <div class="concept-desc">Anula una compra o venta. El stock y CPP se restauran al estado anterior.</div>
+        </div>
+      </div>
+
+      <p class="subsection-label">Consejos clave</p>
+      <ul class="tips-list">
+        <li>✅ Registrá cada compra — el stock siempre estará actualizado.</li>
+        <li>✅ El CPP lo calcula el sistema solo.</li>
+        <li>✅ Antes de vender, verificá que haya stock suficiente.</li>
+        <li>✅ Podés cancelar una compra o venta desde el detalle.</li>
+        <li>⚠️ El stock en negativo está desactivado — el sistema avisa si no hay suficiente.</li>
+      </ul>
+    </div>
+
+    <p class="section-label">Manuales por módulo</p>
+    <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1.25rem;">Hacé clic en cualquier módulo para ver instrucciones detalladas.</p>
+
+    <!-- ─── OPERACIÓN ────────────────────────────────────────────── -->
+    <div class="section">
+      <p class="section-label">Operación</p>
+      <ul class="module-list">
+
+        <li>
+          <a class="module-card" href="06-ventas.html">
+            <div class="module-icon">🛒</div>
+            <div class="module-info">
+              <div class="module-name">POS — Punto de Venta</div>
+              <div class="module-desc">Registrá ventas desde la caja, con teclado o mouse</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+        <li>
+          <a class="module-card" href="06-ventas.html">
+            <div class="module-icon">🧾</div>
+            <div class="module-info">
+              <div class="module-name">Ventas</div>
+              <div class="module-desc">Consultá el historial de ventas y sus detalles</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+        <li>
+          <a class="module-card" href="05-compras.html">
+            <div class="module-icon">🚚</div>
+            <div class="module-info">
+              <div class="module-name">Compras</div>
+              <div class="module-desc">Registrá compras a proveedores y actualizá el stock</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+        <li>
+          <a class="module-card" href="07-ajustes.html">
+            <div class="module-icon">📋</div>
+            <div class="module-info">
+              <div class="module-name">Ajustes de stock</div>
+              <div class="module-desc">Corregí diferencias de inventario manualmente</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+      </ul>
+    </div>
+
+    <!-- ─── CATÁLOGO ─────────────────────────────────────────────── -->
+    <div class="section">
+      <p class="section-label">Catálogo</p>
+      <ul class="module-list">
+
+        <li>
+          <a class="module-card" href="03-productos.html">
+            <div class="module-icon">📦</div>
+            <div class="module-info">
+              <div class="module-name">Productos</div>
+              <div class="module-desc">Creá y modificá productos, precios y unidades</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+        <li>
+          <a class="module-card" href="02-categorias.html">
+            <div class="module-icon">🗂</div>
+            <div class="module-info">
+              <div class="module-name">Categorías</div>
+              <div class="module-desc">Organizá los productos en grupos o familias</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+        <li>
+          <a class="module-card" href="09-contactos.html">
+            <div class="module-icon">👥</div>
+            <div class="module-info">
+              <div class="module-name">Contactos</div>
+              <div class="module-desc">Gestioná clientes y proveedores del negocio</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+      </ul>
+    </div>
+
+    <!-- ─── INVENTARIO ────────────────────────────────────────────── -->
+    <div class="section">
+      <p class="section-label">Inventario</p>
+      <ul class="module-list">
+
+        <li>
+          <a class="module-card" href="10-stock-actual.html">
+            <div class="module-icon">📊</div>
+            <div class="module-info">
+              <div class="module-name">Stock actual</div>
+              <div class="module-desc">Consultá el stock disponible y el historial de movimientos</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+        <li>
+          <a class="module-card" href="04-inventario-inicial.html">
+            <div class="module-icon">📥</div>
+            <div class="module-info">
+              <div class="module-name">Inventario inicial</div>
+              <div class="module-desc">Cargá el stock inicial al arrancar el sistema por primera vez</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+      </ul>
+    </div>
+
+    <!-- ─── REPORTES ──────────────────────────────────────────────── -->
+    <div class="section">
+      <p class="section-label">Reportes</p>
+      <ul class="module-list">
+
+        <li>
+          <a class="module-card" href="08-reportes.html">
+            <div class="module-icon">📈</div>
+            <div class="module-info">
+              <div class="module-name">Reportes</div>
+              <div class="module-desc">Analizá ventas, ganancias, stock y movimientos por período</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+      </ul>
+    </div>
+
+    <!-- ─── CONFIGURACIÓN ─────────────────────────────────────────── -->
+    <div class="section">
+      <p class="section-label">Configuración (solo administrador)</p>
+      <ul class="module-list">
+
+        <li>
+          <a class="module-card" href="01-configuracion.html">
+            <div class="module-icon">⚙️</div>
+            <div class="module-info">
+              <div class="module-name">Configuración y Monedas</div>
+              <div class="module-desc">Ajustes del negocio, IVA, stock y tipos de cambio</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+        <li>
+          <a class="module-card" href="11-unidades.html">
+            <div class="module-icon">📐</div>
+            <div class="module-info">
+              <div class="module-name">Unidades de medida</div>
+              <div class="module-desc">Administrá las unidades utilizadas en el catálogo de productos</div>
+            </div>
+            <span class="module-arrow">›</span>
+          </a>
+        </li>
+
+      </ul>
+    </div>
+
+  </main>
+
+  <footer>
+    <p>Ante cualquier duda, contactá a tu administrador.</p>
+  </footer>
+
+</body>
+</html>

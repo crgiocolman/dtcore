@@ -1,0 +1,583 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contactos — Manual DTCore</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary:        #2563eb;
+      --primary-light:  #eff6ff;
+      --primary-dark:   #1d4ed8;
+      --text:           #1e293b;
+      --text-light:     #475569;
+      --text-muted:     #94a3b8;
+      --border:         #e2e8f0;
+      --surface:        #f8fafc;
+      --warn-bg:        #fef9c3;
+      --warn-border:    #f59e0b;
+      --warn-text:      #78350f;
+      --tip-border:     #cbd5e1;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    header {
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .brand {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    .nav-back {
+      display: inline-block;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .nav-back:hover {
+      text-decoration: underline;
+    }
+
+    /* ─── Secciones ──────────────────────────────────────────────── */
+    section {
+      margin-bottom: 2.75rem;
+    }
+
+    section h2 {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    section p,
+    section li {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ─── Tabla de tipos ─────────────────────────────────────────── */
+    .type-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5rem;
+      font-size: 0.97rem;
+    }
+
+    .type-table th {
+      text-align: left;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0.5rem 0.875rem;
+      border-bottom: 2px solid var(--border);
+      background: var(--surface);
+    }
+
+    .type-table td {
+      padding: 0.65rem 0.875rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: top;
+    }
+
+    .type-table td:first-child {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .type-table td.td-muted {
+      color: var(--text-light);
+    }
+
+    /* ─── Descripción de campos ──────────────────────────────────── */
+    .field-group {
+      margin-top: 0.6rem;
+      padding-left: 1rem;
+      border-left: 3px solid var(--border);
+    }
+
+    .field-group dt {
+      font-weight: 600;
+      font-size: 0.97rem;
+      color: var(--text);
+      margin-top: 0.5rem;
+    }
+
+    .field-group dd {
+      font-size: 0.95rem;
+      color: var(--text-light);
+      margin: 0;
+    }
+
+    /* ─── Botones inline ─────────────────────────────────────────── */
+    .btn {
+      display: inline-block;
+      padding: 0.1rem 0.55rem;
+      font-size: 0.83rem;
+      font-weight: 600;
+      border-radius: 5px;
+      background: var(--primary);
+      color: #fff;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .btn-danger {
+      display: inline-block;
+      padding: 0.1rem 0.55rem;
+      font-size: 0.83rem;
+      font-weight: 600;
+      border-radius: 5px;
+      background: #ef4444;
+      color: #fff;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .btn-sec {
+      display: inline-block;
+      padding: 0.1rem 0.55rem;
+      font-size: 0.83rem;
+      font-weight: 600;
+      border-radius: 5px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    /* ─── Pasos ──────────────────────────────────────────────────── */
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 0.35rem;
+    }
+
+    .step-body h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+
+    .step-body p {
+      color: var(--text-light);
+    }
+
+    /* ─── Nota de advertencia ────────────────────────────────────── */
+    .warning {
+      background: var(--warn-bg);
+      border-left: 4px solid var(--warn-border);
+      border-radius: 0 6px 6px 0;
+      padding: 0.875rem 1.125rem;
+      margin: 0.9rem 0;
+      color: var(--warn-text);
+      font-size: 0.97rem;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .warning strong {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 0.15rem;
+    }
+
+    /* ─── Consejos ───────────────────────────────────────────────── */
+    .tip-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .tip {
+      padding: 0.75rem 1.1rem;
+      border-left: 3px solid var(--tip-border);
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.97rem;
+    }
+
+    .tip strong {
+      display: block;
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 0.1rem;
+    }
+
+    .tip span {
+      color: var(--text-light);
+    }
+
+    /* Fix: evitar que el color de .tip span pise el texto de los botones inline */
+    .tip span .btn        { color: #fff; }
+    .tip span .btn-danger { color: #fff; }
+    .tip span .btn-sec    { color: var(--text); }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    /* ─── Impresión ───────────────────────────────────────────────── */
+    @media print {
+      body {
+        padding: 0;
+        max-width: 100%;
+        font-size: 12pt;
+      }
+
+      header { page-break-after: avoid; }
+      section { page-break-inside: avoid; }
+      .step { page-break-inside: avoid; }
+      .warning { page-break-inside: avoid; }
+      footer { page-break-before: avoid; }
+
+      a[href]::after { content: none; }
+      .nav-back { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a class="nav-back" href="index.html">← Volver al índice</a>
+    <span class="brand">DTCore</span>
+    <h1>Contactos</h1>
+    <p class="header-subtitle">Manual de usuario</p>
+  </header>
+
+  <main>
+
+    <!-- ─── SECCIÓN 1: ¿PARA QUÉ SIRVE? ───────────────────────────── -->
+    <section>
+      <h2>¿Para qué sirve?</h2>
+      <p>
+        El módulo de <strong>Contactos</strong> centraliza los clientes y proveedores del negocio en un único lugar.
+        Cuando registrás una venta podés asociarla a un cliente; cuando registrás una compra, al proveedor que la originó.
+        Esto permite ver el historial de operaciones por contacto y facilita la búsqueda en el POS.
+      </p>
+    </section>
+
+    <!-- ─── SECCIÓN 2: TIPOS DE CONTACTO ──────────────────────────── -->
+    <section>
+      <h2>Tipos de contacto</h2>
+      <p style="margin-bottom:0.75rem; color:var(--text-light);">
+        Cada contacto lleva un tipo que indica su rol en el negocio.
+      </p>
+      <table class="type-table">
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Cuándo usarlo</th>
+            <th>Aparece en…</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Cliente</td>
+            <td class="td-muted">Personas o empresas a las que les vendés productos.</td>
+            <td class="td-muted">Selector de cliente en ventas y POS.</td>
+          </tr>
+          <tr>
+            <td>Proveedor</td>
+            <td class="td-muted">Empresas o personas de las que comprás mercadería.</td>
+            <td class="td-muted">Selector de proveedor en compras.</td>
+          </tr>
+          <tr>
+            <td>Cliente y proveedor</td>
+            <td class="td-muted">El mismo contacto te compra y también te vende (ej. un distribuidor que a su vez es tu cliente).</td>
+            <td class="td-muted">Selector de cliente en ventas y selector de proveedor en compras.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ─── SECCIÓN 3: PASOS ─────────────────────────────────────── -->
+    <section>
+      <h2>Pasos</h2>
+      <ol class="step-list">
+
+        <li class="step">
+          <div class="step-number">1</div>
+          <div class="step-body">
+            <h3>Abrir Contactos</h3>
+            <p>
+              En el menú lateral, hacé click en <strong>Contactos</strong>. Vas a ver la lista de contactos
+              con columnas de <em>Nombre / Razón social</em>, <em>Documento</em>, <em>Tipo</em>,
+              <em>Teléfono</em>, <em>Email</em> y <em>Estado</em>.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">2</div>
+          <div class="step-body">
+            <h3>Buscar un contacto existente</h3>
+            <p>
+              Usá el campo <strong>Buscar por nombre o documento…</strong> para filtrar por nombre, razón social
+              o número de documento. También podés filtrar por tipo usando el selector que muestra
+              <em>Todos</em> / <em>Clientes</em> / <em>Proveedores</em> / <em>Cliente y proveedor</em>.
+              Hacé click en cualquier fila para ver o editar ese contacto.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">3</div>
+          <div class="step-body">
+            <h3>Crear un contacto nuevo</h3>
+            <p>
+              Hacé click en el botón <span class="btn">Nuevo contacto</span> (esquina superior derecha).
+              Se abre el formulario de alta dividido en cuatro secciones.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">4</div>
+          <div class="step-body">
+            <h3>Completar Identificación</h3>
+            <p>En la sección <strong>Identificación</strong> elegí:</p>
+            <dl class="field-group">
+              <dt>Tipo de contacto</dt>
+              <dd>Cliente, Proveedor o Cliente y proveedor según corresponda.</dd>
+              <dt>Tipo de documento</dt>
+              <dd>Sin documento, RUC, Cédula de identidad o Pasaporte. Si elegís cualquier opción distinta de "Sin documento", el campo <em>Número de documento</em> se vuelve obligatorio.</dd>
+              <dt>Número de documento</dt>
+              <dd>Solo se habilita cuando se selecciona un tipo de documento. Para RUC el formato sugerido es <em>ej. 80012345-1</em>.</dd>
+            </dl>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">5</div>
+          <div class="step-body">
+            <h3>Completar datos y comunicación</h3>
+            <p>En las secciones <strong>Datos del contacto</strong> y <strong>Comunicación</strong>:</p>
+            <dl class="field-group">
+              <dt>Razón social / Nombre completo <span style="color:#ef4444">*</span></dt>
+              <dd>Único campo obligatorio. Puede ser el nombre de la persona o de la empresa.</dd>
+              <dt>Nombre fantasía</dt>
+              <dd>Opcional. El nombre comercial o de marca si es diferente a la razón social.</dd>
+              <dt>Teléfono, Email, Dirección</dt>
+              <dd>Todos opcionales. El email se valida automáticamente si se ingresa.</dd>
+              <dt>Notas internas</dt>
+              <dd>Campo libre para condiciones de pago, observaciones internas u otro dato útil.</dd>
+            </dl>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">6</div>
+          <div class="step-body">
+            <h3>Guardar el contacto</h3>
+            <p>
+              Hacé click en <span class="btn">Crear contacto</span>. El sistema te redirige a la lista
+              de contactos donde el nuevo registro ya aparece disponible para usarlo en ventas o compras.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">7</div>
+          <div class="step-body">
+            <h3>Editar un contacto</h3>
+            <p>
+              Hacé click en la fila del contacto en la lista. Se abre el mismo formulario con los datos
+              precargados y el título <strong>Editar contacto</strong>. Modificá lo que necesités y
+              hacé click en <span class="btn">Guardar cambios</span>.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">8</div>
+          <div class="step-body">
+            <h3>Desactivar un contacto</h3>
+            <p>
+              Dentro del formulario de edición, en la sección <strong>Notas y estado</strong>, encontrás
+              el interruptor <em>Contacto activo</em>. Desactivalo para que el contacto deje de aparecer
+              en los selectores de ventas y compras.
+            </p>
+            <div class="warning">
+              <strong>⚠ Desactivar no borra el historial</strong>
+              Un contacto inactivo mantiene todas sus compras y ventas anteriores intactas. Solo deja
+              de estar disponible para nuevas operaciones. Si necesitás reactivarlo, volvé al formulario
+              y activá el interruptor nuevamente.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">9</div>
+          <div class="step-body">
+            <h3>Eliminar un contacto</h3>
+            <p>
+              En el formulario de edición, el botón <span class="btn-danger">Eliminar</span> (esquina
+              superior derecha) abre un modal de confirmación titulado <strong>Eliminar contacto</strong>.
+              Confirmá con <span class="btn-danger">Eliminar</span> o cancelá con
+              <span class="btn-sec">Cancelar</span>.
+            </p>
+            <div class="warning">
+              <strong>⚠ Esta acción no se puede deshacer</strong>
+              Solo eliminá un contacto si nunca fue usado en ventas ni compras. Si ya tiene operaciones
+              registradas, el sistema podría rechazar la eliminación. En ese caso, lo correcto es
+              desactivarlo (paso 8) en lugar de eliminarlo.
+            </div>
+          </div>
+        </li>
+
+      </ol>
+    </section>
+
+    <!-- ─── SECCIÓN 4: CONSEJOS / ERRORES COMUNES ───────────────────── -->
+    <section>
+      <h2>Consejos / Errores comunes</h2>
+      <ul class="tip-list">
+
+        <li class="tip">
+          <strong>Usá "Cliente y proveedor" en vez de duplicar</strong>
+          <span>Si el mismo negocio te compra y también te vende, cargalo una sola vez con tipo
+          <em>Cliente y proveedor</em>. Así el historial queda unificado y evitás tener dos registros
+          del mismo contacto.</span>
+        </li>
+
+        <li class="tip">
+          <strong>El campo obligatorio es solo el nombre</strong>
+          <span>Razón social / Nombre completo es el único dato requerido. Podés cargar el resto
+          (documento, teléfono, email) en otro momento editando el contacto. Esto es útil cuando
+          necesitás crear rápido un contacto en medio de una venta.</span>
+        </li>
+
+        <li class="tip">
+          <strong>El RUC facilita la facturación formal</strong>
+          <span>Si el negocio emite facturas timbradas, cargá el RUC del cliente o proveedor en
+          <em>Tipo de documento → RUC</em> y completá el número. Esto evita tener que buscarlo
+          cada vez que se necesita para la factura.</span>
+        </li>
+
+        <li class="tip">
+          <strong>Contacto inactivo no aparece en el POS ni en compras</strong>
+          <span>Al desactivar un contacto, el selector de clientes del POS y el selector de proveedores
+          en Compras ya no lo muestran. Si un operador dice que "no encuentra" un proveedor o cliente,
+          verificá que esté en estado <em>Activo</em> en la lista de Contactos.</span>
+        </li>
+
+        <li class="tip">
+          <strong>Error "Formato de email inválido"</strong>
+          <span>El sistema valida que el email tenga formato correcto (ej. <em>correo@ejemplo.com</em>).
+          Si aparece ese error al guardar, revisá que no haya espacios ni le falte el "@" o el dominio.
+          Si no tenés el email del contacto, dejá el campo vacío.</span>
+        </li>
+
+        <li class="tip">
+          <strong>No encontrás un contacto en la lista</strong>
+          <span>Verificá que el filtro de tipo no esté limitando los resultados (por ejemplo, mostrando
+          solo <em>Clientes</em> cuando buscás un proveedor). Cambialo a <em>Todos</em> y volvé a buscar.</span>
+        </li>
+
+      </ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Ante cualquier duda, contactá a tu <a href="index.html">administrador</a>.</p>
+  </footer>
+
+
+  <a href="index.html" class="back-to-menu" style="position:fixed;bottom:24px;right:24px;z-index:999;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;">&#8592; Men&#250;</a>
+  <style>@media print{.back-to-menu{display:none}}</style>
+</body>
+</html>

@@ -1,0 +1,824 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Productos — Manual DTCore</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary:        #2563eb;
+      --primary-light:  #eff6ff;
+      --primary-dark:   #1d4ed8;
+      --text:           #1e293b;
+      --text-light:     #475569;
+      --text-muted:     #94a3b8;
+      --border:         #e2e8f0;
+      --surface:        #f8fafc;
+      --warn-bg:        #fef9c3;
+      --warn-border:    #f59e0b;
+      --warn-text:      #78350f;
+      --tip-border:     #cbd5e1;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    header {
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .brand {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    /* ─── Navegación ─────────────────────────────────────────────── */
+    .nav-back {
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .nav-back:hover {
+      text-decoration: underline;
+    }
+
+    /* ─── Secciones ──────────────────────────────────────────────── */
+    section {
+      margin-bottom: 2.75rem;
+    }
+
+    section h2 {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    section p,
+    section li {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ─── Pasos ──────────────────────────────────────────────────── */
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 0.35rem;
+    }
+
+    .step-body h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.3rem;
+    }
+
+    .step-body p {
+      color: var(--text-light);
+    }
+
+    /* ─── Campos y botones ───────────────────────────────────────── */
+    .field {
+      display: inline-block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.05rem 0.45rem;
+      font-size: 0.92rem;
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      white-space: nowrap;
+    }
+
+    .btn {
+      display: inline-block;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 5px;
+      padding: 0.05rem 0.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      white-space: nowrap;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .btn-danger {
+      background: #dc2626;
+    }
+
+    /* ─── Lista de campos obligatorios/opcionales ────────────────── */
+    .field-list {
+      list-style: none;
+      margin-top: 0.6rem;
+      border-left: 3px solid var(--border);
+      padding-left: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .field-list li {
+      font-size: 0.97rem;
+      color: var(--text-light);
+    }
+
+    .field-list li strong {
+      color: var(--text);
+    }
+
+    .required-mark {
+      color: #dc2626;
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+
+    .optional-mark {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    /* ─── Tabla de ejemplo de unidades ──────────────────────────── */
+    .unit-example {
+      margin-top: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      font-size: 0.93rem;
+    }
+
+    .unit-example table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .unit-example th {
+      background: var(--surface);
+      padding: 0.45rem 0.75rem;
+      text-align: left;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .unit-example td {
+      padding: 0.45rem 0.75rem;
+      color: var(--text-light);
+      border-bottom: 1px solid var(--surface);
+    }
+
+    .unit-example tr:last-child td {
+      border-bottom: none;
+    }
+
+    .unit-example td.highlight {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* ─── Nota de advertencia ─────────────────────────────────────── */
+    .warning {
+      background: var(--warn-bg);
+      border-left: 4px solid var(--warn-border);
+      border-radius: 0 6px 6px 0;
+      padding: 0.875rem 1.125rem;
+      margin: 0.9rem 0;
+      color: var(--warn-text);
+      font-size: 0.97rem;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .warning strong {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 0.15rem;
+    }
+
+    /* ─── Capture placeholder ────────────────────────────────────── */
+    .capture {
+      display: block;
+      margin: 0.75rem 0;
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      background: var(--surface);
+      text-align: center;
+    }
+
+    /* ─── Consejos / errores ──────────────────────────────────────── */
+    .tip-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .tip {
+      padding: 0.75rem 1.1rem;
+      border-left: 3px solid var(--tip-border);
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.97rem;
+    }
+
+    .tip strong {
+      display: block;
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 0.1rem;
+    }
+
+    .tip span {
+      color: var(--text-light);
+    }
+
+    .tip span .btn {
+      color: #fff;
+    }
+
+    /* ─── Error del sistema ───────────────────────────────────────── */
+    .sys-error {
+      display: inline-block;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 4px;
+      padding: 0.05rem 0.5rem;
+      font-size: 0.88rem;
+      color: #dc2626;
+      font-style: italic;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    /* ─── Impresión ───────────────────────────────────────────────── */
+    @media print {
+      body {
+        padding: 0;
+        max-width: 100%;
+        font-size: 12pt;
+      }
+
+      .nav-back {
+        display: none;
+      }
+
+      header {
+        page-break-after: avoid;
+      }
+
+      section {
+        page-break-inside: avoid;
+      }
+
+      .step {
+        page-break-inside: avoid;
+      }
+
+      .warning {
+        page-break-inside: avoid;
+      }
+
+      footer {
+        page-break-before: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <a class="nav-back" href="index.html">← Volver al índice</a>
+
+  <header>
+    <span class="brand">DTCore</span>
+    <h1>Productos</h1>
+    <p class="header-subtitle">Manual de usuario</p>
+  </header>
+
+  <main>
+
+    <!-- ─── SECCIÓN 1: ¿PARA QUÉ SIRVE? ───────────────────────────── -->
+    <section>
+      <h2>¿Para qué sirve?</h2>
+      <p>
+        El catálogo de Productos es donde registrás todo lo que vendés o comprás en tu negocio.
+        Cada producto tiene su nombre, código, categoría, impuesto y las unidades en las que se
+        vende o compra (por ejemplo: unidad, caja, docena). Los precios de venta también se
+        configuran desde acá, una vez creado el producto.
+      </p>
+      <p style="margin-top: 0.75rem;">
+        Desde la lista de productos podés buscar por SKU, código de barras o nombre, y filtrar
+        por categoría. Al hacer clic en cualquier fila, se abre el detalle del producto para editarlo.
+      </p>
+    </section>
+
+    <!-- ─── SECCIÓN 2: PASOS ─────────────────────────────────────── -->
+    <section>
+      <h2>Pasos</h2>
+      <ol class="step-list">
+
+        <!-- PASO 1 -->
+        <li class="step">
+          <div class="step-number">1</div>
+          <div class="step-body">
+            <h3>Ir a Productos y abrir el formulario</h3>
+            <p>
+              En el menú lateral, hacé clic en <strong>Productos</strong>. Aparece la lista de
+              productos existentes. Para crear uno nuevo, hacé clic en el botón
+              <span class="btn">+ Nuevo producto</span> en la esquina superior derecha.
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Si querés editar uno ya existente, hacé clic en cualquier fila de la tabla
+              o en el ícono de lápiz de ese producto.
+            </p>
+            <img src="img/prod-01-lista-nuevo-btn.png" alt="Lista de productos con botón Nuevo producto" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+          </div>
+        </li>
+
+        <!-- PASO 2 -->
+        <li class="step">
+          <div class="step-number">2</div>
+          <div class="step-body">
+            <h3>Completar los datos del producto</h3>
+            <p>
+              El formulario se divide en cuatro secciones: <strong>Datos del producto</strong>,
+              <strong>Impuestos</strong>, <strong>Stock</strong> y <strong>Unidades</strong>.
+              Los campos marcados con <span class="required-mark">*</span> son obligatorios.
+            </p>
+
+            <p style="margin-top: 0.6rem;"><strong>Sección "Datos del producto":</strong></p>
+            <ul class="field-list">
+              <li>
+                <strong><span class="field">SKU</span> <span class="required-mark">*</span></strong> —
+                Código interno del producto. Lo definís vos (ej: <em>PROD-001</em>, <em>CJ-60x40</em>).
+                No puede repetirse entre productos activos.
+              </li>
+              <li>
+                <strong><span class="field">Código de barras</span> <span class="optional-mark">(opcional)</span></strong> —
+                El número del código de barras impreso en el producto, si tiene. Sirve para
+                buscarlo rápido en el POS escaneando con una pistola.
+              </li>
+              <li>
+                <strong><span class="field">Nombre</span> <span class="required-mark">*</span></strong> —
+                El nombre como aparece en pantalla y en los comprobantes (ej: <em>Caja de cartón 60×40×40</em>).
+              </li>
+              <li>
+                <strong><span class="field">Descripción</span> <span class="optional-mark">(opcional)</span></strong> —
+                Detalles adicionales para uso interno. No aparece en el POS.
+              </li>
+              <li>
+                <strong><span class="field">Categoría</span> <span class="optional-mark">(opcional)</span></strong> —
+                Agrupación del producto. Podés dejarlo sin categoría y asignarlo después.
+              </li>
+              <li>
+                <strong><span class="field">Unidad base</span> <span class="required-mark">*</span></strong> —
+                La unidad mínima en que se cuenta el stock internamente (ej: <em>Unidad</em>,
+                <em>Kilogramo</em>). Las demás unidades (caja, docena) se definen como múltiplos
+                de esta. Ver Paso 4.
+              </li>
+            </ul>
+
+            <img src="img/prod-02-formulario-datos.png" alt="Sección Datos del producto con campos visibles" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+          </div>
+        </li>
+
+        <!-- PASO 3 -->
+        <li class="step">
+          <div class="step-number">3</div>
+          <div class="step-body">
+            <h3>Configurar impuestos y control de stock</h3>
+
+            <p><strong>Sección "Impuestos":</strong></p>
+            <ul class="field-list">
+              <li>
+                <strong><span class="field">Tasa IVA</span></strong> —
+                Las opciones son <em>0% — Exento</em>, <em>5%</em> o <em>10%</em>.
+                Por defecto viene en 10%. Consultá con tu contador si no estás seguro.
+              </li>
+              <li>
+                <strong>Precio de góndola incluye IVA</strong> (switch azul) —
+                Cuando está activado (posición ON), el precio que cargás en el sistema
+                ya incluye el IVA. El sistema calcula el desglose automáticamente al vender.
+                Dejalo activado salvo que tu contador te indique lo contrario.
+              </li>
+            </ul>
+
+            <p style="margin-top: 0.75rem;"><strong>Sección "Stock":</strong></p>
+            <ul class="field-list">
+              <li>
+                <strong>Controlar stock de este producto</strong> (switch azul) —
+                Activado por defecto. Desactivalo solo para servicios o productos que no
+                requieren llevar inventario (ej: mano de obra, envío).
+              </li>
+              <li>
+                <strong><span class="field">Umbral de stock bajo</span> <span class="optional-mark">(opcional)</span></strong> —
+                Cantidad mínima antes de que el sistema te avise que el stock está bajo.
+                Podés dejarlo vacío si no necesitás esta alerta.
+              </li>
+            </ul>
+
+            <div class="warning">
+              <strong>⚠ Los impuestos se configuran por producto</strong>
+              La tasa de IVA y el toggle de "incluye IVA" se aplican en cada venta que registres
+              con ese producto. Si los cambiás después de haberlo vendido, las ventas anteriores
+              no se modifican: conservan los valores que tenían al momento de la venta.
+            </div>
+          </div>
+        </li>
+
+        <!-- PASO 4 -->
+        <li class="step">
+          <div class="step-number">4</div>
+          <div class="step-body">
+            <h3>Agregar unidades de medida</h3>
+            <p>
+              En la sección <strong>Unidades</strong>, hacé clic en
+              <span class="btn" style="background:#475569">Agregar unidad</span> para añadir
+              una unidad de venta o compra. Podés tener varias unidades para el mismo producto:
+              por ejemplo, vender por <em>unidad</em> y comprar por <em>caja</em>.
+            </p>
+
+            <p style="margin-top: 0.6rem;">El modal "Agregar unidad" tiene estos campos:</p>
+            <ul class="field-list">
+              <li>
+                <strong><span class="field">Unidad</span></strong> —
+                Seleccioná del catálogo (ej: <em>Unidad (u)</em>, <em>Caja (cj)</em>,
+                <em>Kilogramo (kg)</em>). Si no existe la que necesitás, primero creála en
+                <em>Configuración → Unidades de medida</em>.
+              </li>
+              <li>
+                <strong><span class="field">Factor (respecto a unidad base)</span></strong> —
+                Cuántas unidades base equivale esta unidad. Si la unidad base es "Unidad" y
+                estás agregando "Caja de 12", el factor es <em>12</em>. Si la unidad es la
+                misma que la base (factor 1), podés dejarlo en 1.
+              </li>
+              <li>
+                <strong><span class="field">Código de barras</span></strong> —
+                Opcional. Si la caja tiene un código de barras distinto al de la unidad suelta,
+                podés cargarlo acá.
+              </li>
+              <li>
+                <strong>Unidad de venta por defecto</strong> —
+                La unidad que aparece seleccionada por defecto en el POS al vender.
+              </li>
+              <li>
+                <strong>Unidad de compra por defecto</strong> —
+                La unidad que aparece por defecto al registrar una compra a proveedor.
+              </li>
+            </ul>
+
+            <div class="unit-example">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Unidad</th>
+                    <th>Factor</th>
+                    <th>Default venta</th>
+                    <th>Default compra</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="highlight">Unidad (u)</td>
+                    <td>1</td>
+                    <td>Sí</td>
+                    <td>—</td>
+                  </tr>
+                  <tr>
+                    <td class="highlight">Caja (cj)</td>
+                    <td>12</td>
+                    <td>—</td>
+                    <td>Sí</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p style="margin-top: 0.5rem; font-size: 0.93rem; color: var(--text-muted);">
+              Ejemplo: se vende por unidad y se compra por caja de 12.
+              El sistema convierte automáticamente al ingresar o egresar stock.
+            </p>
+
+            <div class="warning">
+              <strong>⚠ El factor no se puede cambiar si ya hay movimientos o precios</strong>
+              Una vez que el producto tuvo compras, ventas o precios cargados para esa unidad,
+              el campo <span class="field">Factor</span> queda bloqueado. Si cometiste un error
+              en el factor antes de operar, podés eliminar la unidad y volver a agregarla con
+              el valor correcto.
+            </div>
+
+            <p style="margin-top: 0.75rem;">
+              Hacé clic en <span class="btn">Guardar unidad</span> para confirmar.
+              Podés agregar todas las unidades que necesites antes de guardar el producto.
+            </p>
+          </div>
+        </li>
+
+        <!-- PASO 5 -->
+        <li class="step">
+          <div class="step-number">5</div>
+          <div class="step-body">
+            <h3>Guardar el producto</h3>
+            <p>
+              Una vez completados los datos, hacé clic en <span class="btn">Crear producto</span>
+              (en modo edición, el botón dice <span class="btn">Guardar cambios</span>).
+              El sistema te lleva al detalle del producto recién creado.
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Si falta algún campo obligatorio, el sistema resalta el campo en rojo con un
+              mensaje de error debajo. Completalo y volvé a intentar.
+            </p>
+
+            <img src="img/prod-03-formulario-crear-btn.png" alt="Formulario con botón Crear producto" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+          </div>
+        </li>
+
+        <!-- PASO 6 -->
+        <li class="step">
+          <div class="step-number">6</div>
+          <div class="step-body">
+            <h3>Registrar el precio de venta</h3>
+            <p>
+              Los precios se cargan <strong>después de guardar el producto</strong>, en la sección
+              <strong>Precios vigentes</strong> que aparece en el formulario de edición.
+              La tabla muestra una fila por cada combinación de <em>unidad activa × moneda activa</em>.
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Para cargar o actualizar un precio, hacé clic en
+              <span class="btn" style="background:#475569">Cambiar precio</span>
+              en la fila correspondiente. Se abre un modal con tres campos:
+            </p>
+            <ul class="field-list">
+              <li>
+                <strong>Precio</strong> — El monto en la moneda indicada. Incluye IVA si
+                activaste "Precio de góndola incluye IVA" en el paso anterior.
+              </li>
+              <li>
+                <strong><span class="field">Vigente desde</span></strong> — La fecha a partir
+                de la cual rige este precio. Por defecto viene con la fecha de hoy.
+              </li>
+              <li>
+                <strong><span class="field">Notas</span> (opcional)</strong> —
+                Por ejemplo: <em>"Ajuste por inflación de junio"</em>.
+              </li>
+            </ul>
+            <p style="margin-top: 0.5rem;">
+              Hacé clic en <span class="btn">Guardar precio</span>. Los precios anteriores
+              quedan guardados como historial; el sistema siempre usa el precio más reciente
+              cuya fecha ya haya llegado.
+            </p>
+
+            <img src="img/prod-04-precios-vigentes.png" alt="Sección Precios vigentes con botón Cambiar precio" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+
+            <div class="warning">
+              <strong>⚠ Los precios no retroactúan</strong>
+              Si guardás un precio con fecha de hoy, las ventas que ya se confirmaron
+              antes de ese momento no cambian. El historial de ventas siempre refleja
+              el precio que estaba vigente en el momento de la venta.
+            </div>
+          </div>
+        </li>
+
+        <!-- PASO 7 -->
+        <li class="step">
+          <div class="step-number">7</div>
+          <div class="step-body">
+            <h3>Activar, desactivar o eliminar un producto</h3>
+            <p>
+              Para <strong>eliminar</strong> un producto, abrí su ficha y hacé clic en el botón
+              rojo <span class="btn btn-danger">Eliminar</span> en la esquina superior derecha.
+              Se abre un modal de confirmación. Si confirmás, el producto queda marcado como
+              <em>Eliminado</em> pero no desaparece definitivamente: podés recuperarlo desde
+              la lista activando el filtro <strong>Mostrar eliminados</strong> y haciendo clic
+              en el ícono de restaurar (flecha circular).
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Para <strong>inactivar</strong> una unidad de medida específica sin eliminar el
+              producto, abrí la ficha, buscá la unidad en la tabla de Unidades y usá el toggle
+              (interruptor) que aparece en su fila. La unidad queda marcada como
+              <em>Inactiva</em> y no aparece en el POS ni en los formularios de compra,
+              pero los registros históricos que la usaron se conservan.
+            </p>
+
+            <div class="warning">
+              <strong>⚠ Un producto eliminado no se puede usar en nuevas operaciones</strong>
+              Al eliminar un producto, no podrás seleccionarlo en ventas ni compras nuevas.
+              Las ventas y compras anteriores donde se usó quedan intactas. Si lo eliminaste
+              por error, restáuralo con el ícono de flecha circular en la lista.
+            </div>
+          </div>
+        </li>
+
+      </ol>
+    </section>
+
+    <!-- ─── SECCIÓN 3: CONSEJOS / ERRORES COMUNES ───────────────────── -->
+    <section>
+      <h2>Consejos / Errores comunes</h2>
+      <ul class="tip-list">
+
+        <li class="tip">
+          <strong>El SKU no puede repetirse entre productos activos</strong>
+          <span>
+            Si intentás guardar con un SKU que ya existe, el sistema rechaza la operación.
+            Elegí un código diferente o verificá si el producto ya estaba creado buscándolo
+            en la lista. Si era un producto eliminado, podés restaurarlo en lugar de crear uno nuevo.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Creá el producto antes de cargar el precio</strong>
+          <span>
+            La sección <strong>Precios vigentes</strong> solo aparece una vez que el
+            producto está guardado. Si no ves la tabla de precios, es porque el producto
+            todavía está en modo creación. Guardalo primero con
+            <span class="btn" style="font-size:0.83rem;">Crear producto</span> y luego
+            cargá el precio.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Precio en "—" en la lista de productos</strong>
+          <span>
+            Si la columna "Precio PYG" muestra un guion (—), significa que todavía no se cargó
+            ningún precio en PYG para la unidad de venta por defecto. Abrí el producto y
+            cargá el precio con <span class="btn" style="font-size:0.83rem; background:#475569;">Cambiar precio</span>.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Diferencia entre SKU y código de barras</strong>
+          <span>
+            El <strong>SKU</strong> es el código que vos definís para identificar el producto en
+            el sistema (código interno). El <strong>Código de barras</strong> es el número
+            impreso en el producto por el fabricante (EAN, UPC). Si tu negocio ya tiene códigos
+            propios, usá el SKU. Si usás pistola lectora con los códigos del fabricante, cargá
+            el código de barras también.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>¿Cuándo desactivar una unidad en vez de eliminarla?</strong>
+          <span>
+            Si una unidad ya tuvo movimientos (ventas o compras), el ícono de tacho no aparece
+            — el sistema la protege para conservar el historial. En ese caso, usá el toggle
+            (interruptor) para inactivarla. Así no aparece en operaciones nuevas pero el
+            historial queda intacto.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>No puedo restaurar un producto eliminado</strong>
+          <span>
+            Si al restaurar aparece el mensaje <span class="sys-error">No se puede restaurar</span>,
+            es porque otro producto activo ya tiene el mismo SKU o código de barras.
+            El sistema te muestra un botón "Ver producto activo" para ir a ese producto y
+            resolverlo antes de restaurar.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Organizá bien el catálogo desde el inicio</strong>
+          <span>
+            Usar SKUs consistentes (ej: categoría + número) y asignar categorías desde el
+            principio facilita la búsqueda y los reportes. Un catálogo ordenado ahorra tiempo
+            cuando el volumen de productos crece.
+          </span>
+        </li>
+
+      </ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Ante cualquier duda, contactá a tu administrador. · <a href="index.html">Volver al índice</a></p>
+  </footer>
+
+
+  <!-- Lightbox -->
+  <div id="lightbox" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;cursor:zoom-out;" role="dialog" aria-modal="true">
+    <span id="lightbox-close" style="position:absolute;top:16px;right:24px;color:#fff;font-size:2.5rem;line-height:1;cursor:pointer;user-select:none;">&times;</span>
+    <img id="lightbox-img" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);cursor:default;">
+  </div>
+  <style>
+    img[src^="img/"] { cursor: zoom-in; transition: opacity .15s; }
+    img[src^="img/"]:hover { opacity: .9; }
+    @media print { #lightbox { display: none !important; } }
+  </style>
+  <script>
+    (function () {
+      var lb    = document.getElementById('lightbox');
+      var lbImg = document.getElementById('lightbox-img');
+      function openLb(img) {
+        lbImg.src = img.src; lbImg.alt = img.alt;
+        lb.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+      }
+      function closeLb() {
+        lb.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+      document.querySelectorAll('img[src^="img/"]').forEach(function (img) {
+        img.addEventListener('click', function () { openLb(img); });
+      });
+      lb.addEventListener('click', function (e) { if (e.target !== lbImg) closeLb(); });
+      document.getElementById('lightbox-close').addEventListener('click', closeLb);
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeLb(); });
+    })();
+  </script>
+
+  <a href="index.html" class="back-to-menu" style="position:fixed;bottom:24px;right:24px;z-index:999;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;">&#8592; Men&#250;</a>
+  <style>@media print{.back-to-menu{display:none}}</style>
+</body>
+</html>

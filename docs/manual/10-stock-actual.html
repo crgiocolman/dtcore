@@ -1,0 +1,603 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock actual — Manual DTCore</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary:        #2563eb;
+      --primary-light:  #eff6ff;
+      --primary-dark:   #1d4ed8;
+      --text:           #1e293b;
+      --text-light:     #475569;
+      --text-muted:     #94a3b8;
+      --border:         #e2e8f0;
+      --surface:        #f8fafc;
+      --warn-bg:        #fef9c3;
+      --warn-border:    #f59e0b;
+      --warn-text:      #78350f;
+      --tip-border:     #cbd5e1;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    header {
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .brand {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    .nav-back {
+      display: inline-block;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .nav-back:hover { text-decoration: underline; }
+
+    /* ─── Secciones ──────────────────────────────────────────────── */
+    section {
+      margin-bottom: 2.75rem;
+    }
+
+    section h2 {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    section p,
+    section li {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ─── Tabla de columnas ──────────────────────────────────────── */
+    .col-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5rem;
+      font-size: 0.97rem;
+    }
+
+    .col-table th {
+      text-align: left;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0.5rem 0.875rem;
+      border-bottom: 2px solid var(--border);
+      background: var(--surface);
+    }
+
+    .col-table td {
+      padding: 0.65rem 0.875rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: top;
+    }
+
+    .col-table td:first-child {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .col-table td.td-muted {
+      color: var(--text-light);
+    }
+
+    /* ─── Badges inline ──────────────────────────────────────────── */
+    .badge-low {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: rgba(245,158,11,0.15);
+      color: #b45309;
+      white-space: nowrap;
+      vertical-align: middle;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .badge-none {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: rgba(239,68,68,0.15);
+      color: #b91c1c;
+      white-space: nowrap;
+      vertical-align: middle;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ─── Comparativa consulta vs ajuste ─────────────────────────── */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    .compare-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.875rem 1rem;
+      background: var(--surface);
+    }
+
+    .compare-card h4 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.4rem;
+    }
+
+    .compare-card p {
+      font-size: 0.9rem;
+      color: var(--text-light);
+    }
+
+    /* ─── Botones inline ─────────────────────────────────────────── */
+    .btn {
+      display: inline-block;
+      padding: 0.1rem 0.55rem;
+      font-size: 0.83rem;
+      font-weight: 600;
+      border-radius: 5px;
+      background: var(--primary);
+      color: #fff;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .btn-sec {
+      display: inline-block;
+      padding: 0.1rem 0.55rem;
+      font-size: 0.83rem;
+      font-weight: 600;
+      border-radius: 5px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    /* ─── Pasos ──────────────────────────────────────────────────── */
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 0.35rem;
+    }
+
+    .step-body h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+
+    .step-body p {
+      color: var(--text-light);
+    }
+
+    /* ─── Nota de advertencia ────────────────────────────────────── */
+    .warning {
+      background: var(--warn-bg);
+      border-left: 4px solid var(--warn-border);
+      border-radius: 0 6px 6px 0;
+      padding: 0.875rem 1.125rem;
+      margin: 0.9rem 0;
+      color: var(--warn-text);
+      font-size: 0.97rem;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .warning strong {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 0.15rem;
+    }
+
+    /* ─── Consejos ───────────────────────────────────────────────── */
+    .tip-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .tip {
+      padding: 0.75rem 1.1rem;
+      border-left: 3px solid var(--tip-border);
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.97rem;
+    }
+
+    .tip strong {
+      display: block;
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 0.1rem;
+    }
+
+    .tip span {
+      color: var(--text-light);
+    }
+
+    /* Fix: evitar que .tip span pise el texto de botones inline */
+    .tip span .btn        { color: #fff; }
+    .tip span .btn-sec    { color: var(--text); }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    /* ─── Impresión ───────────────────────────────────────────────── */
+    @media print {
+      body { padding: 0; max-width: 100%; font-size: 12pt; }
+      header { page-break-after: avoid; }
+      section { page-break-inside: avoid; }
+      .step { page-break-inside: avoid; }
+      .warning { page-break-inside: avoid; }
+      footer { page-break-before: avoid; }
+      a[href]::after { content: none; }
+      .nav-back { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a class="nav-back" href="index.html">← Volver al índice</a>
+    <span class="brand">DTCore</span>
+    <h1>Stock actual</h1>
+    <p class="header-subtitle">Manual de usuario</p>
+  </header>
+
+  <main>
+
+    <!-- ─── SECCIÓN 1: ¿PARA QUÉ SIRVE? ───────────────────────────── -->
+    <section>
+      <h2>¿Para qué sirve?</h2>
+      <p>
+        La pantalla <strong>Inventario</strong> muestra el stock disponible de cada producto en tiempo real:
+        cuántas unidades hay, a qué costo promedio y cuánto representa en valor total.
+        Es una vista de solo consulta: no modifica el stock ni genera movimientos.
+        Para corregir diferencias hay que usar el módulo de <a href="07-ajustes.html">Ajustes de stock</a>.
+      </p>
+    </section>
+
+    <!-- ─── SECCIÓN 2: QUÉ MUESTRA LA TABLA ──────────────────────── -->
+    <section>
+      <h2>Qué muestra la tabla</h2>
+      <p style="margin-bottom:0.75rem; color:var(--text-light);">
+        Cada fila es un producto. Hacé click en el encabezado de cualquier columna para ordenar la lista.
+      </p>
+      <table class="col-table">
+        <thead>
+          <tr>
+            <th>Columna</th>
+            <th>Qué significa</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>SKU</td>
+            <td class="td-muted">Código interno del producto.</td>
+          </tr>
+          <tr>
+            <td>Nombre</td>
+            <td class="td-muted">Nombre del producto tal como está en el catálogo.</td>
+          </tr>
+          <tr>
+            <td>Categoría</td>
+            <td class="td-muted">Categoría a la que pertenece el producto.</td>
+          </tr>
+          <tr>
+            <td>Unidad</td>
+            <td class="td-muted">Símbolo de la unidad base (ej. <em>un</em>, <em>kg</em>, <em>lt</em>).</td>
+          </tr>
+          <tr>
+            <td>Stock actual</td>
+            <td class="td-muted">Cantidad disponible en la unidad base. Incluye todas las entradas
+            (compras, ajustes de ingreso, inventario inicial) menos todas las salidas (ventas, ajustes de egreso).</td>
+          </tr>
+          <tr>
+            <td>Costo CPP (Gs)</td>
+            <td class="td-muted">Costo Promedio Ponderado por unidad. Se recalcula automáticamente cada vez
+            que ingresa mercadería. Las salidas no lo modifican.</td>
+          </tr>
+          <tr>
+            <td>Valor total (Gs)</td>
+            <td class="td-muted">Stock actual × Costo CPP. Muestra cuánto vale lo que hay en depósito.</td>
+          </tr>
+          <tr>
+            <td>Última act.</td>
+            <td class="td-muted">Fecha del último movimiento que modificó el stock de ese producto.</td>
+          </tr>
+          <tr>
+            <td>Estado</td>
+            <td class="td-muted">
+              Aparece solo cuando hay una situación a atender:<br />
+              <span class="badge-none">Sin stock</span> — cantidad en cero.<br />
+              <span class="badge-low">⚠ Stock bajo</span> — por debajo del umbral mínimo configurado.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ─── SECCIÓN 3: INVENTARIO VS AJUSTES ─────────────────────── -->
+    <section>
+      <h2>Consulta vs. corrección</h2>
+      <p style="margin-bottom:0.75rem; color:var(--text-light);">
+        Inventario y Ajustes de stock son dos herramientas distintas para dos propósitos distintos.
+      </p>
+      <div class="compare-grid">
+        <div class="compare-card">
+          <h4>📊 Inventario (esta pantalla)</h4>
+          <p>Consultá el stock en cualquier momento. Solo muestra información, no genera movimientos ni cambia ningún número.</p>
+        </div>
+        <div class="compare-card">
+          <h4>📋 Ajustes de stock</h4>
+          <p>Corregí diferencias reales. Ingresá o egresá unidades cuando el sistema no coincide con lo que hay físicamente. Genera movimientos permanentes.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── SECCIÓN 4: PASOS ─────────────────────────────────────── -->
+    <section>
+      <h2>Pasos</h2>
+      <ol class="step-list">
+
+        <li class="step">
+          <div class="step-number">1</div>
+          <div class="step-body">
+            <h3>Abrir Inventario</h3>
+            <p>
+              En el menú lateral, hacé click en <strong>Inventario</strong>.
+              La tabla carga con todos los productos que tienen seguimiento de stock activo,
+              ordenados por nombre de forma predeterminada.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">2</div>
+          <div class="step-body">
+            <h3>Buscar y filtrar</h3>
+            <p>
+              Combiná los filtros disponibles según lo que necesitás ver:
+            </p>
+            <ul style="margin-top:0.5rem; padding-left:1.25rem; color:var(--text-light); font-size:0.97rem;">
+              <li style="margin-bottom:0.35rem;"><strong style="color:var(--text);">Buscar por nombre, SKU…</strong> — filtrá en tiempo real mientras escribís.</li>
+              <li style="margin-bottom:0.35rem;"><strong style="color:var(--text);">Todas las categorías</strong> — limitá la vista a una sola categoría del catálogo.</li>
+              <li style="margin-bottom:0.35rem;"><strong style="color:var(--text);">Solo con stock</strong> — ocultá los productos en cero para ver solo lo que tenés disponible.</li>
+              <li><strong style="color:var(--text);">Solo stock bajo</strong> — mostrá únicamente los productos por debajo de su umbral mínimo.</li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">3</div>
+          <div class="step-body">
+            <h3>Leer las alertas de stock</h3>
+            <p>
+              En la columna <em>Estado</em> aparecen dos alertas posibles.
+              <span class="badge-none">Sin stock</span> significa que la cantidad llegó a cero
+              y el producto no puede venderse (a menos que el negocio tenga habilitado el stock negativo).
+              <span class="badge-low">⚠ Stock bajo</span> significa que la cantidad está por debajo del
+              mínimo configurado en la ficha del producto — conviene reponer antes de que se agote.
+            </p>
+            <div class="warning">
+              <strong>⚠ El umbral de stock bajo se define por producto</strong>
+              El mínimo de cada producto se configura en el módulo de
+              <a href="03-productos.html" style="color:var(--warn-text); font-weight:600;">Productos</a>,
+              al crear o editar la ficha del producto. Si un producto nunca aparece
+              con alerta aunque el stock sea bajo, probablemente no tiene mínimo configurado.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">4</div>
+          <div class="step-body">
+            <h3>Ver el kardex de un producto</h3>
+            <p>
+              Hacé click en cualquier fila de la tabla. Se abre la pantalla de
+              <strong>movimientos del producto</strong> con un encabezado que muestra
+              SKU, unidad base, stock actual y costo CPP. Debajo aparece el historial
+              de todos los movimientos ordenados por fecha.
+            </p>
+            <p style="margin-top:0.5rem;">
+              Las columnas del kardex son: <em>Fecha</em>, <em>Tipo</em>,
+              <em>Documento</em> (enlace "Ver" a la compra o ajuste que lo originó),
+              <em>Cantidad</em> (en verde si fue entrada, en rojo si fue salida),
+              <em>Costo unit. (Gs)</em> y <em>Saldo</em> (stock tras ese movimiento).
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">5</div>
+          <div class="step-body">
+            <h3>Filtrar movimientos en el kardex</h3>
+            <p>
+              Dentro del kardex podés acotar los movimientos con tres filtros:
+            </p>
+            <ul style="margin-top:0.5rem; padding-left:1.25rem; color:var(--text-light); font-size:0.97rem;">
+              <li style="margin-bottom:0.35rem;"><strong style="color:var(--text);">Desde / Hasta</strong> — rango de fechas para ver movimientos de un período específico.</li>
+              <li><strong style="color:var(--text);">Tipo</strong> — elegí entre <em>Todos los tipos</em>, Compra, Venta, Dev. entrada, Dev. salida, Ajuste +, Ajuste − o Stock inicial.</li>
+            </ul>
+            <p style="margin-top:0.5rem;">
+              Si no hay movimientos en el rango seleccionado, aparece
+              <em>"Sin movimientos en el período seleccionado"</em>.
+              Para volver a la lista general usá la flecha ← que está arriba del nombre del producto.
+            </p>
+          </div>
+        </li>
+
+      </ol>
+    </section>
+
+    <!-- ─── SECCIÓN 5: CONSEJOS / ERRORES COMUNES ───────────────────── -->
+    <section>
+      <h2>Consejos / Errores comunes</h2>
+      <ul class="tip-list">
+
+        <li class="tip">
+          <strong>Verificá el stock antes de una venta grande</strong>
+          <span>Si un cliente pide una cantidad importante de un producto, abrí Inventario y buscá ese
+          producto para confirmar que la cantidad disponible alcanza. Esto evita confirmar una venta
+          y que el sistema la rechace por falta de stock.</span>
+        </li>
+
+        <li class="tip">
+          <strong>Usá "Solo stock bajo" para planificar compras</strong>
+          <span>Activar el filtro <em>Solo stock bajo</em> te da una lista rápida de todo lo que hay que
+          reponer. Podés revisarla antes de hacer un pedido a proveedores para no olvidar ningún
+          producto crítico.</span>
+        </li>
+
+        <li class="tip">
+          <strong>El kardex es el registro definitivo de cada movimiento</strong>
+          <span>Cada compra, venta, ajuste y carga inicial queda en el kardex. Si el stock de un producto
+          no coincide con lo que esperabas, abrí su kardex y recorré la columna <em>Saldo</em> para
+          identificar en qué movimiento empezó la diferencia.</span>
+        </li>
+
+        <li class="tip">
+          <strong>Costo CPP en cero o muy bajo</strong>
+          <span>Si un producto muestra <em>Costo CPP (Gs)</em> en cero, probablemente se cargó con
+          inventario inicial sin indicar costo, o todos sus ingresos tuvieron costo cero.
+          Para corregirlo, registrá una compra o un ajuste de ingreso con el costo real.</span>
+        </li>
+
+        <li class="tip">
+          <strong>Un producto no aparece en la lista</strong>
+          <span>Solo se muestran productos con seguimiento de stock activo (<em>track_stock</em>
+          activado en la ficha del producto). Si un producto no aparece, verificá esa opción en
+          <a href="03-productos.html">Productos</a>.</span>
+        </li>
+
+        <li class="tip">
+          <strong>Esta pantalla no modifica nada</strong>
+          <span>Inventario es solo consulta. Si al hacer un conteo físico encontrás diferencias,
+          registrá la corrección en <a href="07-ajustes.html">Ajustes de stock</a> — no en esta pantalla.</span>
+        </li>
+
+      </ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Ante cualquier duda, contactá a tu <a href="index.html">administrador</a>.</p>
+  </footer>
+
+
+  <a href="index.html" class="back-to-menu" style="position:fixed;bottom:24px;right:24px;z-index:999;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;">&#8592; Men&#250;</a>
+  <style>@media print{.back-to-menu{display:none}}</style>
+</body>
+</html>

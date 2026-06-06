@@ -1,0 +1,742 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard y Reportes — Manual DTCore</title>
+  <style>
+    /* ─── Reset y base ───────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary:        #2563eb;
+      --primary-light:  #eff6ff;
+      --primary-dark:   #1d4ed8;
+      --text:           #1e293b;
+      --text-light:     #475569;
+      --text-muted:     #94a3b8;
+      --border:         #e2e8f0;
+      --surface:        #f8fafc;
+      --warn-bg:        #fef9c3;
+      --warn-border:    #f59e0b;
+      --warn-text:      #78350f;
+      --tip-border:     #cbd5e1;
+      --success:        #059669;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    header {
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .brand {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    /* ─── Secciones ──────────────────────────────────────────────── */
+    section {
+      margin-bottom: 2.75rem;
+    }
+
+    section h2 {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    section p,
+    section li {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ─── Sub-encabezados dentro de sección ──────────────────────── */
+    .subsection-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.5rem 0 0.5rem;
+    }
+
+    .subsection-title:first-child {
+      margin-top: 0;
+    }
+
+    /* ─── Pasos ──────────────────────────────────────────────────── */
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 0.35rem;
+    }
+
+    .step-body h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+
+    .step-body p {
+      color: var(--text-light);
+    }
+
+    /* ─── Advertencia ─────────────────────────────────────────────── */
+    .warning {
+      background: var(--warn-bg);
+      border-left: 4px solid var(--warn-border);
+      border-radius: 0 6px 6px 0;
+      padding: 0.875rem 1.125rem;
+      margin: 0.9rem 0;
+      color: var(--warn-text);
+      font-size: 0.97rem;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .warning strong {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 0.15rem;
+    }
+
+    /* ─── Consejos ────────────────────────────────────────────────── */
+    .tip-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .tip {
+      padding: 0.75rem 1.1rem;
+      border-left: 3px solid var(--tip-border);
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.97rem;
+    }
+
+    .tip strong {
+      display: block;
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 0.1rem;
+    }
+
+    .tip span {
+      color: var(--text-light);
+    }
+
+    /* ─── Tarjetas de métricas (descripción) ─────────────────────── */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    .metric-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.875rem 1rem;
+      background: var(--surface);
+    }
+
+    .metric-label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+
+    .metric-desc {
+      font-size: 0.9rem;
+      color: var(--text-light);
+      line-height: 1.5;
+    }
+
+    /* ─── Tabla de reportes ───────────────────────────────────────── */
+    .type-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.97rem;
+      margin-top: 0.25rem;
+    }
+
+    .type-table th {
+      text-align: left;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0.5rem 0.875rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .type-table td {
+      padding: 0.6rem 0.875rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-light);
+      vertical-align: top;
+    }
+
+    .type-table td:first-child {
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .type-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* ─── Presets de fecha ────────────────────────────────────────── */
+    .preset-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0.5rem 0 0.25rem;
+    }
+
+    .preset-chip {
+      display: inline-block;
+      padding: 0.2rem 0.65rem;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    /* ─── Campos inline ──────────────────────────────────────────── */
+    .field-group {
+      margin: 0.6rem 0 0.2rem 0;
+      padding-left: 1rem;
+      border-left: 3px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .field-group p {
+      font-size: 0.95rem;
+      color: var(--text-light);
+    }
+
+    .field-group p strong {
+      color: var(--text);
+    }
+
+    /* ─── Botones inline ─────────────────────────────────────────── */
+    .btn {
+      display: inline-block;
+      padding: 0.1rem 0.55rem;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      line-height: 1.5;
+      background: var(--primary);
+      color: #fff;
+      border: 1px solid transparent;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .btn-sec {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    /* fix: tip span hereda color: var(--text-light) */
+    .tip span .btn       { color: #fff; }
+    .tip span .btn-sec   { color: var(--text); }
+
+    /* ─── Enlace volver ──────────────────────────────────────────── */
+    .nav-back {
+      display: inline-block;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .nav-back:hover {
+      text-decoration: underline;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    /* ─── Impresión ───────────────────────────────────────────────── */
+    @media print {
+      body {
+        padding: 0;
+        max-width: 100%;
+        font-size: 12pt;
+      }
+
+      header { page-break-after: avoid; }
+      section { page-break-inside: avoid; }
+      .step { page-break-inside: avoid; }
+      .warning { page-break-inside: avoid; }
+      footer { page-break-before: avoid; }
+
+      a[href]::after { content: none; }
+      .nav-back { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="brand">DTCore</span>
+    <h1>Dashboard y Reportes</h1>
+    <p class="header-subtitle">Manual de usuario</p>
+  </header>
+
+  <main>
+
+    <!-- ─── SECCIÓN 1: ¿PARA QUÉ SIRVE? ───────────────────────────── -->
+    <section>
+      <h2>¿Para qué sirve?</h2>
+      <p>
+        DTCore tiene dos pantallas de consulta analítica. La pantalla
+        <strong>Inicio</strong> muestra un resumen en tiempo real del mes en curso:
+        métricas clave, gráficos de ventas y alertas de stock bajo — útil para
+        revisar rápidamente cómo va el negocio cada día.
+      </p>
+      <p style="margin-top:0.75rem;">
+        La pantalla <strong>Reportes</strong> permite analizar períodos históricos
+        en detalle, consultar el movimiento de un producto específico y exportar
+        los datos a un archivo Excel (CSV).
+      </p>
+    </section>
+
+    <!-- ─── SECCIÓN 2: LA PANTALLA "INICIO" ─────────────────────────── -->
+    <section>
+      <h2>La pantalla "Inicio"</h2>
+
+      <p class="subsection-title">Las 4 métricas del mes</p>
+      <p style="color:var(--text-light); font-size:1rem;">
+        Al ingresar al sistema, la pantalla <strong>Inicio</strong> muestra cuatro
+        tarjetas con datos acumulados del mes en curso:
+      </p>
+      <div class="metric-grid">
+        <div class="metric-card">
+          <div class="metric-label">Ventas del mes</div>
+          <div class="metric-desc">
+            Total en guaraníes de todas las ventas confirmadas
+            del mes en curso.
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Operaciones</div>
+          <div class="metric-desc">
+            Cantidad de ventas individuales realizadas en el mes,
+            sin importar el monto.
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Ticket promedio</div>
+          <div class="metric-desc">
+            Monto promedio por venta
+            (Ventas del mes ÷ Operaciones).
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Utilidad</div>
+          <div class="metric-desc">
+            Diferencia entre lo vendido y el costo de lo vendido
+            (ingresos − costos). Aparece en verde si es positiva,
+            en rojo si es negativa.
+          </div>
+        </div>
+      </div>
+
+      <p class="subsection-title">Gráfico: Ventas por día — mes actual</p>
+      <p style="color:var(--text-light); font-size:1rem;">
+        Barras que muestran el total vendido en guaraníes por cada día del mes actual.
+        Pasando el cursor sobre una barra aparece el monto exacto del día.
+        Si no hay ventas en el mes, el gráfico muestra el mensaje
+        <em>"Sin ventas este mes"</em>.
+      </p>
+
+      <p class="subsection-title">Gráfico: Top productos — mes</p>
+      <p style="color:var(--text-light); font-size:1rem;">
+        Gráfico de dona con los productos que más se vendieron en el mes, ordenados
+        por monto total. Debajo del gráfico aparece el listado con los 5 primeros
+        y el monto de cada uno.
+      </p>
+
+      <p class="subsection-title">Productos con stock bajo</p>
+      <p style="color:var(--text-light); font-size:1rem;">
+        Lista de productos cuyo stock actual está por debajo del mínimo configurado.
+        El sistema muestra el nombre del producto, el SKU, la cantidad actual y el
+        mínimo establecido (por ejemplo: <em>3 / 10 mín</em>). Si todos los productos
+        tienen stock suficiente, el sistema indica
+        <em>"Todos los productos tienen stock suficiente"</em>.
+      </p>
+      <div class="warning">
+        <strong>⚠ Prestá atención a esta lista</strong>
+        Si un producto aparece acá, hay riesgo de quedarse sin stock antes de la próxima
+        compra. Registrá una compra o un ajuste de ingreso para reponer el stock
+        antes de que se agote.
+      </div>
+
+      <p class="subsection-title">Valor del inventario</p>
+      <p style="color:var(--text-light); font-size:1rem;">
+        Muestra el valor total del stock calculado como
+        <em>costo promedio × cantidad actual</em> del depósito por defecto.
+        Debajo del total aparece el desglose por categoría (hasta 5 categorías).
+        Este número refleja cuánto capital está invertido en mercadería.
+      </p>
+    </section>
+
+    <!-- ─── SECCIÓN 3: QUÉ MUESTRA CADA REPORTE ─────────────────────── -->
+    <section>
+      <h2>Qué muestra cada reporte</h2>
+      <p style="color:var(--text-light); font-size:1rem; margin-bottom:0.75rem;">
+        La pantalla <strong>Reportes</strong> tiene cinco pestañas. Hacé clic en
+        la pestaña para cambiar de reporte.
+      </p>
+      <table class="type-table">
+        <thead>
+          <tr>
+            <th>Pestaña</th>
+            <th>Qué muestra</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Ventas por período</td>
+            <td>
+              Total vendido y cantidad de operaciones agrupadas por
+              <strong>Día</strong>, <strong>Semana</strong> o <strong>Mes</strong>.
+              Incluye gráfico de barras y tabla con columnas
+              <em>Período</em>, <em>Operaciones</em> y <em>Total (Gs)</em>.
+            </td>
+          </tr>
+          <tr>
+            <td>Top productos</td>
+            <td>
+              Los 25 productos más vendidos del período. Podés ordenarlos
+              <strong>Por monto</strong> (monto total vendido) o
+              <strong>Por cantidad</strong> (unidades vendidas).
+              Columnas: <em>#</em>, <em>SKU</em>, <em>Producto</em>,
+              <em>Cantidad</em>, <em>Total (Gs)</em>.
+            </td>
+          </tr>
+          <tr>
+            <td>Utilidad por producto</td>
+            <td>
+              Ingresos, costo y utilidad bruta por producto, con el porcentaje
+              de margen. Muestra 4 tarjetas resumen: <em>Ingresos</em>,
+              <em>Costo</em>, <em>Utilidad</em> y <em>Margen promedio</em>.
+              La utilidad aparece en verde (positiva) o rojo (negativa).
+            </td>
+          </tr>
+          <tr>
+            <td>Kardex</td>
+            <td>
+              Todos los movimientos de stock de un producto seleccionado:
+              compras, ventas, ajustes, devoluciones y stock inicial.
+              Cada fila muestra fecha, tipo de movimiento, dirección
+              (Entrada/Salida), cantidad y el saldo acumulado tras el movimiento.
+            </td>
+          </tr>
+          <tr>
+            <td>Valor de inventario</td>
+            <td>
+              Valor total del stock actual calculado a costo promedio, desglosado
+              por categoría con el porcentaje que representa cada una.
+              <strong>No tiene filtro de fechas</strong> — siempre muestra el valor
+              en este momento.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ─── SECCIÓN 4: PASOS ─────────────────────────────────────────── -->
+    <section>
+      <h2>Pasos</h2>
+      <ol class="step-list">
+
+        <li class="step">
+          <div class="step-number">1</div>
+          <div class="step-body">
+            <h3>Abrir Reportes y elegir la pestaña</h3>
+            <p>
+              Desde el menú lateral hacé clic en <strong>Reportes</strong>. Vas a
+              ver la barra de pestañas en la parte superior de la pantalla. Hacé
+              clic en la pestaña del reporte que querés ver:
+              <em>Ventas por período</em>, <em>Top productos</em>,
+              <em>Utilidad por producto</em>, <em>Kardex</em> o
+              <em>Valor de inventario</em>. La pestaña activa se marca con una
+              línea azul debajo.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">2</div>
+          <div class="step-body">
+            <h3>Filtrar por fecha</h3>
+            <p>
+              La mayoría de los reportes tienen un filtro de fecha encima de los
+              resultados. Podés usar los botones de acceso rápido o ingresar fechas
+              manualmente:
+            </p>
+            <div class="preset-list">
+              <span class="preset-chip">Este mes</span>
+              <span class="preset-chip">Mes pasado</span>
+              <span class="preset-chip">Últimos 30 días</span>
+              <span class="preset-chip">Este año</span>
+            </div>
+            <p style="margin-top:0.5rem;">
+              Para un período personalizado, usá los campos de fecha
+              <em>Fecha desde</em> — <em>Fecha hasta</em> a la derecha de los botones.
+              Al escribir una fecha manualmente, los botones de acceso rápido se
+              deseleccionan automáticamente.
+            </p>
+            <p style="margin-top:0.4rem;">
+              El tab <em>Valor de inventario</em> no tiene filtro de fecha — muestra
+              siempre el valor actual del stock.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">3</div>
+          <div class="step-body">
+            <h3>Ventas por período — cambiar la agrupación</h3>
+            <p>
+              Dentro del tab <strong>Ventas por período</strong>, tres botones en la
+              barra superior permiten cambiar cómo se agrupan los datos:
+            </p>
+            <div class="field-group">
+              <p><strong>Día</strong> — muestra un fila por cada día con ventas.</p>
+              <p><strong>Semana</strong> — agrupa los días en semanas.</p>
+              <p><strong>Mes</strong> — muestra un fila por mes, útil para rangos de varios meses o el año completo.</p>
+            </div>
+            <p style="margin-top:0.5rem;">
+              El gráfico de barras se actualiza junto con la tabla al cambiar la
+              agrupación.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">4</div>
+          <div class="step-body">
+            <h3>Kardex — buscar el producto</h3>
+            <p>
+              En el tab <strong>Kardex</strong>, primero tenés que seleccionar el
+              producto. Escribí al menos 2 caracteres en el campo
+              <em>"Buscar producto por nombre, SKU o código de barras…"</em> y
+              elegí el producto de la lista que aparece. Inmediatamente se carga
+              el historial de movimientos en el período seleccionado.
+            </p>
+            <p style="margin-top:0.5rem;">
+              Los tipos de movimiento que puede mostrar el Kardex son:
+            </p>
+            <div class="field-group">
+              <p><strong>Compra</strong> — ingreso de mercadería por compra a proveedor.</p>
+              <p><strong>Venta</strong> — salida de mercadería por venta.</p>
+              <p><strong>Ajuste +</strong> / <strong>Ajuste −</strong> — ajuste manual de stock (ingreso o egreso).</p>
+              <p><strong>Dev. entrada</strong> / <strong>Dev. salida</strong> — devolución de cliente o a proveedor.</p>
+              <p><strong>Stock inicial</strong> — carga inicial del inventario.</p>
+            </div>
+            <p style="margin-top:0.5rem;">
+              La columna <em>Saldo</em> muestra la cantidad en stock después de
+              cada movimiento. Para cambiar de producto, hacé clic en la X que
+              aparece al lado del nombre del producto seleccionado.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">5</div>
+          <div class="step-body">
+            <h3>Exportar a CSV</h3>
+            <p>
+              Cada reporte tiene un botón <span class="btn btn-sec">Exportar CSV</span>
+              en la esquina superior derecha de los resultados. Al hacer clic,
+              el navegador descarga un archivo <em>.csv</em> que podés abrir
+              directamente con Excel, LibreOffice Calc u otra planilla de cálculo.
+              El nombre del archivo incluye el nombre del reporte y las fechas del
+              período para facilitar la identificación.
+            </p>
+            <p style="margin-top:0.4rem;">
+              El botón está deshabilitado si no hay datos en el período seleccionado.
+            </p>
+          </div>
+        </li>
+
+      </ol>
+    </section>
+
+    <!-- ─── SECCIÓN 5: CONSEJOS / ERRORES COMUNES ────────────────────── -->
+    <section>
+      <h2>Consejos / Errores comunes</h2>
+      <ul class="tip-list">
+
+        <li class="tip">
+          <strong>Revisá el Dashboard al inicio de cada jornada</strong>
+          <span>
+            Abrí la pantalla <em>Inicio</em> al empezar el día. Las 4 métricas y la
+            lista <em>Productos con stock bajo</em> te dan un panorama inmediato sin
+            necesidad de configurar filtros ni abrir Reportes.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Atendé el stock bajo antes de que sea urgente</strong>
+          <span>
+            Si hay productos en la lista <em>Productos con stock bajo</em>, hacé clic
+            en el nombre del producto para ir directo a su ficha, o registrá una
+            compra. No esperes a que el stock llegue a cero para actuar.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>La utilidad depende del costo promedio</strong>
+          <span>
+            El reporte <em>Utilidad por producto</em> calcula la ganancia usando el
+            costo promedio registrado en las compras y ajustes de ingreso. Si alguna
+            compra se cargó con costo incorrecto, la utilidad tampoco va a ser exacta.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Usá el Kardex para auditar diferencias de stock</strong>
+          <span>
+            Si el stock de un producto no coincide con lo esperado, abrí el Kardex
+            con un rango de fechas amplio (por ejemplo <em>Este año</em>). Cada fila
+            muestra qué movimiento cambió el stock y en qué momento, lo que facilita
+            encontrar el origen de la diferencia.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>"Valor de inventario" siempre muestra el momento actual</strong>
+          <span>
+            Este tab no tiene filtro de fecha. El valor que muestra corresponde al
+            stock y costos promedios <em>ahora mismo</em>, no a un período histórico.
+            Para ver la evolución en el tiempo, usá el Kardex producto por producto.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>El CSV descargado puede abrirse directo en Excel</strong>
+          <span>
+            Si al abrir el archivo los caracteres con tilde o la ñ se ven mal,
+            en Excel usá <em>Datos → Obtener datos externos → Desde texto</em>
+            y elegí la codificación <em>UTF-8</em>. El contenido del archivo
+            es siempre correcto; el problema es de la codificación al abrir.
+          </span>
+        </li>
+
+      </ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <a class="nav-back" href="index.html">← Volver al índice</a>
+    <p>Ante cualquier duda, contactá a tu administrador.</p>
+  </footer>
+
+
+  <a href="index.html" class="back-to-menu" style="position:fixed;bottom:24px;right:24px;z-index:999;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;">&#8592; Men&#250;</a>
+  <style>@media print{.back-to-menu{display:none}}</style>
+</body>
+</html>

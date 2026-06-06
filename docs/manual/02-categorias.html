@@ -1,0 +1,615 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Categorías — Manual DTCore</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary:        #2563eb;
+      --primary-light:  #eff6ff;
+      --text:           #1e293b;
+      --text-light:     #475569;
+      --text-muted:     #94a3b8;
+      --border:         #e2e8f0;
+      --surface:        #f8fafc;
+      --warn-bg:        #fef9c3;
+      --warn-border:    #f59e0b;
+      --warn-text:      #78350f;
+      --tip-border:     #cbd5e1;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    header {
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .brand {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    /* ─── Secciones ──────────────────────────────────────────────── */
+    section {
+      margin-bottom: 2.75rem;
+    }
+
+    section h2 {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    section p {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    section p + p {
+      margin-top: 0.75rem;
+    }
+
+    /* ─── Pasos ──────────────────────────────────────────────────── */
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 0.35rem;
+    }
+
+    .step-body h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.3rem;
+    }
+
+    .step-body p {
+      color: var(--text-light);
+    }
+
+    .step-body p + p {
+      margin-top: 0.5rem;
+    }
+
+    /* ─── Acción UI inline ────────────────────────────────────────── */
+    /* Nombre de botón o ícono tal como aparece en pantalla */
+    .btn {
+      font-weight: 600;
+      color: var(--primary);
+      background: var(--primary-light);
+      border: 1px solid #bfdbfe;
+      border-radius: 4px;
+      padding: 0.1em 0.45em;
+      font-size: 0.93em;
+      white-space: nowrap;
+    }
+
+    .btn-danger {
+      font-weight: 600;
+      color: #b91c1c;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 4px;
+      padding: 0.1em 0.45em;
+      font-size: 0.93em;
+      white-space: nowrap;
+    }
+
+    /* ─── Ícono de acción inline ──────────────────────────────────── */
+    .icon {
+      display: inline-block;
+      font-weight: 700;
+      font-size: 0.85em;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.05em 0.4em;
+      white-space: nowrap;
+      color: var(--text);
+    }
+
+    /* ─── Lista dentro de un paso ─────────────────────────────────── */
+    .substep-list {
+      list-style: none;
+      margin-top: 0.65rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      counter-reset: substep;
+    }
+
+    .substep-list li {
+      counter-increment: substep;
+      padding-left: 1.5rem;
+      position: relative;
+      color: var(--text-light);
+      font-size: 0.97rem;
+      line-height: 1.6;
+    }
+
+    .substep-list li::before {
+      content: counter(substep) ".";
+      position: absolute;
+      left: 0;
+      font-weight: 700;
+      color: var(--primary);
+      font-size: 0.88rem;
+    }
+
+    /* ─── Ejemplo visual del árbol de categorías ──────────────────── */
+    .tree-example {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.875rem 1.125rem;
+      margin: 0.75rem 0;
+      font-size: 0.93rem;
+      color: var(--text-light);
+      line-height: 2;
+      font-family: 'Segoe UI', system-ui, monospace;
+    }
+
+    .tree-example .root  { color: var(--text); font-weight: 600; }
+    .tree-example .child { padding-left: 1.5rem; }
+    .tree-example .grandchild { padding-left: 3rem; }
+    .tree-example .arrow { color: var(--text-muted); margin-right: 0.25rem; }
+
+    /* ─── Placeholder de captura ──────────────────────────────────── */
+    .capture {
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      padding: 1.25rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      background: var(--surface);
+      margin: 0.9rem 0;
+      font-style: italic;
+    }
+
+    /* ─── Advertencia ─────────────────────────────────────────────── */
+    .warning {
+      background: var(--warn-bg);
+      border-left: 4px solid var(--warn-border);
+      border-radius: 0 6px 6px 0;
+      padding: 0.875rem 1.125rem;
+      margin: 0.9rem 0;
+      color: var(--warn-text);
+      font-size: 0.97rem;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .warning strong {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 0.2rem;
+    }
+
+    /* ─── Mensaje de error del sistema ───────────────────────────── */
+    .sys-error {
+      display: inline-block;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 4px;
+      padding: 0.15em 0.5em;
+      font-size: 0.93em;
+      color: #b91c1c;
+      font-style: italic;
+    }
+
+    /* ─── Consejos / errores ──────────────────────────────────────── */
+    .tip-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .tip {
+      padding: 0.75rem 1.1rem;
+      border-left: 3px solid var(--tip-border);
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.97rem;
+    }
+
+    .tip strong {
+      display: block;
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 0.15rem;
+    }
+
+    .tip span {
+      color: var(--text-light);
+      line-height: 1.6;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* ─── Impresión ───────────────────────────────────────────────── */
+    @media print {
+      body    { padding: 0; max-width: 100%; font-size: 12pt; }
+      header  { page-break-after: avoid; }
+      section { page-break-inside: avoid; }
+      .step   { page-break-inside: avoid; }
+      .warning { page-break-inside: avoid; }
+      footer  { page-break-before: avoid; }
+      a[href]::after { content: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="brand">DTCore</span>
+    <h1>Categorías</h1>
+    <p class="header-subtitle">Manual de usuario</p>
+  </header>
+
+  <main>
+
+    <!-- ════════════════════════════════════════════════════════════
+         SECCIÓN 1: ¿PARA QUÉ SIRVE?
+         ════════════════════════════════════════════════════════════ -->
+    <section>
+      <h2>¿Para qué sirve?</h2>
+      <p>
+        Las categorías te permiten agrupar los productos de tu catálogo para encontrarlos más
+        fácil. Por ejemplo: "Bebidas", "Lácteos", "Limpieza". Dentro de cada grupo podés crear
+        subgrupos más específicos: "Bebidas → Gaseosas", "Bebidas → Jugos".
+      </p>
+      <p>
+        Al crear o editar un producto, podés asignarle una categoría. Esto facilita la búsqueda
+        en los listados, los filtros y los reportes.
+        <strong>Planificar bien la estructura de categorías desde el inicio ahorra mucho
+        trabajo después</strong>, porque cambiar la categoría de cientos de productos
+        uno por uno lleva tiempo.
+      </p>
+
+      <div class="tree-example">
+        <div class="root">📁 Bebidas</div>
+        <div class="child"><span class="arrow">└─</span> Gaseosas</div>
+        <div class="child"><span class="arrow">└─</span> Jugos</div>
+        <div class="root">📁 Lácteos</div>
+        <div class="child"><span class="arrow">└─</span> Quesos</div>
+        <div class="child"><span class="arrow">└─</span> Yogures</div>
+        <div class="root">📁 Limpieza</div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════
+         SECCIÓN 2: PASOS
+         ════════════════════════════════════════════════════════════ -->
+    <section>
+      <h2>Pasos</h2>
+      <ol class="step-list">
+
+        <!-- PASO 1 -->
+        <li class="step">
+          <div class="step-number">1</div>
+          <div class="step-body">
+            <h3>Ir a la pantalla de Categorías</h3>
+            <p>
+              En el menú lateral (la barra de la izquierda), buscá la sección
+              <strong>Catálogo</strong> y hacé click en <strong>Categorías</strong>.
+            </p>
+            <img src="img/cat-01-pantalla-categorias.png" alt="Pantalla Categorías con árbol y botón Nueva categoría" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+            <p>
+              Si todavía no hay ninguna categoría cargada, verás el mensaje
+              "No hay categorías registradas" con un botón
+              <span class="btn">Agregar primera categoría</span>.
+            </p>
+          </div>
+        </li>
+
+        <!-- PASO 2 -->
+        <li class="step">
+          <div class="step-number">2</div>
+          <div class="step-body">
+            <h3>Crear una categoría principal</h3>
+            <p>
+              Hacé click en el botón azul <span class="btn">+ Nueva categoría</span>
+              que está en la esquina superior derecha.
+            </p>
+            <img src="img/cat-02-nueva-categoria-campo.png" alt="Campo Nombre de la categoría con íconos de confirmar y cancelar" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+            <p>
+              Aparece un campo de texto al pie de la lista con el texto de guía
+              "Nombre de la categoría". Escribí el nombre del grupo
+              (por ejemplo: <em>"Bebidas"</em>) y confirmá de una de estas dos formas:
+            </p>
+            <ul class="substep-list">
+              <li>Hacé click en el <span class="icon">✓</span> (tilde verde) para guardar.</li>
+              <li>Presioná <strong>Enter</strong> en el teclado.</li>
+              <li>Para cancelar sin guardar, hacé click en la <span class="icon">✕</span>.</li>
+            </ul>
+            <p>
+              La nueva categoría aparece en la lista en orden alfabético.
+            </p>
+          </div>
+        </li>
+
+        <!-- PASO 3 -->
+        <li class="step">
+          <div class="step-number">3</div>
+          <div class="step-body">
+            <h3>Crear una subcategoría</h3>
+            <p>
+              Pasá el mouse por encima de la categoría donde querés agregar el subgrupo.
+              A la derecha del nombre aparecen tres íconos pequeños:
+              <span class="icon">✏</span> lápiz,
+              <span class="icon">+</span> más y
+              <span class="icon">🗑</span> tacho.
+            </p>
+            <img src="img/cat-03-iconos-hover.png" alt="Fila de categoría con íconos lápiz, más y tacho al hacer hover" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+            <p>
+              Hacé click en el <span class="icon">+</span> (el del medio).
+              Aparece un campo de texto debajo de esa categoría, con sangría (indentado),
+              indicando que va a quedar dentro de ella.
+            </p>
+            <p>
+              Escribí el nombre de la subcategoría (por ejemplo: <em>"Gaseosas"</em>)
+              y confirmá con el <span class="icon">✓</span> o con Enter.
+            </p>
+            <div class="warning">
+              <strong>⚠ Solo se pueden crear subcategorías de un nivel</strong>
+              El sistema admite máximo 2 niveles: categoría principal → subcategoría.
+              No es posible crear subsubcategorías (una subcategoría dentro de otra subcategoría).
+              Si necesitás más detalle, usá el campo de descripción del producto.
+            </div>
+          </div>
+        </li>
+
+        <!-- PASO 4 -->
+        <li class="step">
+          <div class="step-number">4</div>
+          <div class="step-body">
+            <h3>Renombrar una categoría</h3>
+            <p>
+              Pasá el mouse sobre la categoría que querés cambiar y hacé click en el
+              ícono de <span class="icon">✏</span> lápiz (el primero de los tres).
+            </p>
+            <img src="img/cat-04-editar-nombre.png" alt="Nombre de categoría editable con valor prellenado" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+            <p>
+              El nombre de la categoría se convierte en un campo de texto editable con
+              el valor actual ya cargado. Modificá el texto y confirmá con
+              <span class="icon">✓</span> o Enter. Para descartar el cambio, presioná
+              <span class="icon">✕</span>.
+            </p>
+            <p>
+              El cambio se guarda de inmediato y todos los productos que tenían esa
+              categoría asignada quedan actualizados automáticamente.
+            </p>
+          </div>
+        </li>
+
+        <!-- PASO 5 -->
+        <li class="step">
+          <div class="step-number">5</div>
+          <div class="step-body">
+            <h3>Eliminar una categoría</h3>
+            <p>
+              Pasá el mouse sobre la categoría y hacé click en el
+              <span class="icon" style="color:#b91c1c;">🗑</span> tacho rojo
+              (el último de los tres íconos).
+            </p>
+            <img src="img/cat-05-confirmar-eliminar.png" alt="Confirmación de eliminación con botones Sí y No" style="width:100%;border-radius:8px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.08);display:block;margin:0 auto;">
+            <p>
+              La fila muestra el nombre de la categoría seguido de la pregunta
+              <strong>"¿Eliminar?"</strong> y dos botones:
+              <span class="btn-danger">Sí</span> para confirmar y
+              <span class="btn">No</span> para cancelar.
+            </p>
+            <div class="warning">
+              <strong>⚠ No podés eliminar una categoría que tenga productos activos</strong>
+              Si intentás eliminar una categoría que todavía tiene productos asignados,
+              el sistema muestra el error:
+              <br><br>
+              <span class="sys-error">"La categoría tiene productos asociados y no puede eliminarse"</span>
+              <br><br>
+              Antes de eliminarla, tenés que entrar al módulo de <strong>Productos</strong>
+              y cambiar la categoría de esos productos (asignales otra categoría o dejala
+              en blanco).
+            </div>
+            <div class="warning">
+              <strong>⚠ No podés eliminar una categoría que tenga subcategorías</strong>
+              Si la categoría tiene subgrupos dentro, el sistema muestra:
+              <br><br>
+              <span class="sys-error">"La categoría tiene subcategorías y no puede eliminarse"</span>
+              <br><br>
+              Primero eliminá las subcategorías (de abajo hacia arriba), y después
+              podés eliminar la categoría principal.
+            </div>
+          </div>
+        </li>
+
+      </ol>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════
+         SECCIÓN 3: CONSEJOS / ERRORES COMUNES
+         ════════════════════════════════════════════════════════════ -->
+    <section>
+      <h2>Consejos / Errores comunes</h2>
+      <ul class="tip-list">
+
+        <li class="tip">
+          <strong>Planificá la estructura antes de empezar a cargar productos</strong>
+          <span>
+            Cambiar la categoría de muchos productos después lleva tiempo porque hay que
+            hacerlo uno por uno. Antes de cargar el catálogo, pensá qué grupos principales
+            necesitás y si alguno va a tener subgrupos.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Dos niveles son suficientes para la mayoría de los negocios</strong>
+          <span>
+            Un árbol con más de dos niveles (categoría → subcategoría → sub-subcategoría) se
+            vuelve difícil de navegar en el POS y en los listados. Si necesitás más detalle,
+            es mejor crear más categorías al mismo nivel que anidarlas.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Los íconos de acción aparecen al pasar el mouse</strong>
+          <span>
+            En pantallas táctiles (celulares o tablets) los íconos de lápiz, más y tacho
+            siempre están visibles. En una PC con mouse, aparecen solo cuando pasás el cursor
+            por encima de la categoría.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Error: "La categoría tiene productos asociados y no puede eliminarse"</strong>
+          <span>
+            Andá al módulo <strong>Productos</strong>, filtrá por esa categoría, y
+            editá cada producto para asignarle otra categoría. Cuando no quede ningún
+            producto en la categoría, podrás eliminarla.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Error: "La categoría tiene subcategorías y no puede eliminarse"</strong>
+          <span>
+            Primero eliminá o vaciá las subcategorías (empezando por las que no tienen
+            productos). Solo cuando todas las subcategorías estén eliminadas podrás
+            eliminar la categoría principal.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>No se pueden fusionar dos categorías directamente</strong>
+          <span>
+            Si querés unir dos grupos, tenés que mover los productos de una categoría a la
+            otra manualmente en el módulo de Productos, y después eliminar la que quedó vacía.
+          </span>
+        </li>
+
+      </ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Ante cualquier duda, contactá a tu administrador.</p>
+  </footer>
+
+
+  <!-- Lightbox -->
+  <div id="lightbox" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;cursor:zoom-out;" role="dialog" aria-modal="true">
+    <span id="lightbox-close" style="position:absolute;top:16px;right:24px;color:#fff;font-size:2.5rem;line-height:1;cursor:pointer;user-select:none;">&times;</span>
+    <img id="lightbox-img" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);cursor:default;">
+  </div>
+  <style>
+    img[src^="img/"] { cursor: zoom-in; transition: opacity .15s; }
+    img[src^="img/"]:hover { opacity: .9; }
+    @media print { #lightbox { display: none !important; } }
+  </style>
+  <script>
+    (function () {
+      var lb    = document.getElementById('lightbox');
+      var lbImg = document.getElementById('lightbox-img');
+      function openLb(img) {
+        lbImg.src = img.src; lbImg.alt = img.alt;
+        lb.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+      }
+      function closeLb() {
+        lb.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+      document.querySelectorAll('img[src^="img/"]').forEach(function (img) {
+        img.addEventListener('click', function () { openLb(img); });
+      });
+      lb.addEventListener('click', function (e) { if (e.target !== lbImg) closeLb(); });
+      document.getElementById('lightbox-close').addEventListener('click', closeLb);
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeLb(); });
+    })();
+  </script>
+
+  <a href="index.html" class="back-to-menu" style="position:fixed;bottom:24px;right:24px;z-index:999;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;">&#8592; Men&#250;</a>
+  <style>@media print{.back-to-menu{display:none}}</style>
+</body>
+</html>

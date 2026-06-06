@@ -10,3 +10,4 @@ storage/
 *.pem
 backups/
 scripts/logs/*.log
+backend/logs/

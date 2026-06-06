@@ -1,0 +1,705 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compras — Manual DTCore</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary:        #2563eb;
+      --primary-light:  #eff6ff;
+      --primary-dark:   #1d4ed8;
+      --text:           #1e293b;
+      --text-light:     #475569;
+      --text-muted:     #94a3b8;
+      --border:         #e2e8f0;
+      --surface:        #f8fafc;
+      --warn-bg:        #fef9c3;
+      --warn-border:    #f59e0b;
+      --warn-text:      #78350f;
+      --tip-border:     #cbd5e1;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    header {
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .brand {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    /* ─── Secciones ──────────────────────────────────────────────── */
+    section {
+      margin-bottom: 2.75rem;
+    }
+
+    section h2 {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    section p,
+    section li {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* ─── Pasos ──────────────────────────────────────────────────── */
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 0.35rem;
+    }
+
+    .step-body h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+
+    .step-body p {
+      color: var(--text-light);
+    }
+
+    /* ─── Advertencia ─────────────────────────────────────────────── */
+    .warning {
+      background: var(--warn-bg);
+      border-left: 4px solid var(--warn-border);
+      border-radius: 0 6px 6px 0;
+      padding: 0.875rem 1.125rem;
+      margin: 0.9rem 0;
+      color: var(--warn-text);
+      font-size: 0.97rem;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .warning strong {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 0.15rem;
+    }
+
+    /* ─── Consejos / errores ──────────────────────────────────────── */
+    .tip-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .tip {
+      padding: 0.75rem 1.1rem;
+      border-left: 3px solid var(--tip-border);
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.97rem;
+    }
+
+    .tip strong {
+      display: block;
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 0.1rem;
+    }
+
+    .tip span {
+      color: var(--text-light);
+    }
+
+    .tip span .btn,
+    .tip span .btn-danger {
+      color: #fff;
+    }
+
+    /* ─── Etiquetas de campo y botón ─────────────────────────────── */
+    .field {
+      display: inline-block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.05rem 0.45rem;
+      font-size: 0.92rem;
+      color: var(--text);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .btn {
+      display: inline-block;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 5px;
+      padding: 0.1rem 0.55rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      white-space: nowrap;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .btn-danger {
+      display: inline-block;
+      background: #dc2626;
+      color: #fff;
+      border-radius: 5px;
+      padding: 0.1rem 0.55rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      white-space: nowrap;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .btn-sec {
+      display: inline-block;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.1rem 0.55rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* ─── Tabla de estados ───────────────────────────────────────── */
+    .status-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+      margin: 0.9rem 0;
+    }
+
+    .status-table th {
+      background: var(--surface);
+      color: var(--text-light);
+      font-weight: 600;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.5rem 0.85rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+
+    .status-table td {
+      padding: 0.55rem 0.85rem;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      border-radius: 4px;
+      padding: 0.1rem 0.5rem;
+      white-space: nowrap;
+    }
+
+    .badge-draft   { color: #475569; background: #f1f5f9; border: 1px solid #e2e8f0; }
+    .badge-ok      { color: #16a34a; background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .badge-cancel  { color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; }
+
+    /* ─── Lista de campos ────────────────────────────────────────── */
+    .field-list {
+      list-style: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 0.75rem 0;
+      font-size: 0.95rem;
+    }
+
+    .field-list li {
+      padding: 0.5rem 0.85rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .field-list li:last-child {
+      border-bottom: none;
+    }
+
+    .field-list li span {
+      color: var(--text-light);
+    }
+
+    /* ─── Navegación de retorno ──────────────────────────────────── */
+    .nav-back {
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .nav-back:hover {
+      text-decoration: underline;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    /* ─── Impresión ───────────────────────────────────────────────── */
+    @media print {
+      body { padding: 0; max-width: 100%; font-size: 12pt; }
+      header { page-break-after: avoid; }
+      section { page-break-inside: avoid; }
+      .step { page-break-inside: avoid; }
+      .warning { page-break-inside: avoid; }
+      footer { page-break-before: avoid; }
+      .nav-back { display: none; }
+      a[href]::after { content: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="brand">DTCore</span>
+    <h1>Compras</h1>
+    <p class="header-subtitle">Manual de usuario</p>
+  </header>
+
+  <main>
+
+    <a class="nav-back" href="index.html">← Volver al índice</a>
+
+    <!-- ─── SECCIÓN 1: ¿PARA QUÉ SIRVE? ───────────────────────────── -->
+    <section>
+      <h2>¿Para qué sirve?</h2>
+      <p>
+        El módulo de <strong>Compras</strong> te permite registrar todo lo que comprás a tus
+        proveedores. Cada compra que confirmás suma el stock al depósito y actualiza el
+        costo promedio de cada producto automáticamente, para que los reportes de ganancia
+        sean precisos.
+      </p>
+    </section>
+
+    <!-- ─── SECCIÓN EXTRA: ESTADOS ─────────────────────────────────── -->
+    <section>
+      <h2>Estados de una compra</h2>
+      <p>Cada compra pasa por hasta tres estados:</p>
+      <table class="status-table">
+        <thead>
+          <tr>
+            <th>Estado</th>
+            <th>Qué significa</th>
+            <th>Podés editar?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-draft">Borrador</span></td>
+            <td>La compra está en preparación. Todavía no afecta el stock ni los costos.</td>
+            <td>Sí — podés agregar o quitar ítems y modificar los datos hasta confirmarla.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-ok">Confirmada</span></td>
+            <td>La compra se procesó. El stock y el costo promedio ya se actualizaron.</td>
+            <td>No — solo podés cancelarla si fue un error.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-cancel">Cancelada</span></td>
+            <td>La compra fue anulada. El sistema generó movimientos de stock compensatorios para deshacer el efecto.</td>
+            <td>No — el registro queda para el historial.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ─── SECCIÓN 2: PASOS ─────────────────────────────────────── -->
+    <section>
+      <h2>Pasos</h2>
+      <ol class="step-list">
+
+        <li class="step">
+          <div class="step-number">1</div>
+          <div class="step-body">
+            <h3>Abrir el formulario de nueva compra</h3>
+            <p>
+              En el menú lateral, hacé click en <strong>Compras</strong>. En la lista de compras,
+              presioná el botón <span class="btn">+ Nueva compra</span> en la esquina superior derecha.
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Se abre el formulario con el título <em>"Nueva compra"</em>.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">2</div>
+          <div class="step-body">
+            <h3>Completar los datos de la compra</h3>
+            <p>
+              En la sección <strong>Datos de la compra</strong> completá los siguientes campos:
+            </p>
+            <ul class="field-list">
+              <li>
+                <span class="field">Proveedor *</span>
+                <span> — Escribí el nombre o RUC del proveedor y seleccionalo de la lista. Es un campo obligatorio.</span>
+              </li>
+              <li>
+                <span class="field">Fecha *</span>
+                <span> — Fecha de la compra. Por defecto trae la fecha de hoy.</span>
+              </li>
+              <li>
+                <span class="field">Nro. factura proveedor</span>
+                <span> — Número de factura del proveedor (opcional). Ejemplo: <code>001-001-000123</code>.</span>
+              </li>
+              <li>
+                <span class="field">Depósito *</span>
+                <span> — A qué depósito entra el stock. En la mayoría de los negocios hay un solo depósito activo.</span>
+              </li>
+              <li>
+                <span class="field">Moneda</span>
+                <span> — La moneda en que comprás (PYG, USD, BRL, ARS). Por defecto, guaraníes.</span>
+              </li>
+              <li>
+                <span class="field">Notas</span>
+                <span> — Observaciones libres, referencia de pedido, etc. (opcional).</span>
+              </li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">3</div>
+          <div class="step-body">
+            <h3>Compra en moneda extranjera (USD, BRL, ARS)</h3>
+            <p>
+              Si la compra no es en guaraníes, cambiá el campo <span class="field">Moneda</span>.
+              Aparece automáticamente el campo <span class="field">Tipo de cambio (₲ por 1 USD)</span>
+              con el último tipo de cambio registrado en el sistema.
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Verificá o corregí ese valor según el cambio real de la operación.
+              El sistema calcula el total en guaraníes usando ese tipo de cambio y lo muestra
+              como <em>Total (₲)</em> al pie del formulario.
+            </p>
+            <div class="warning">
+              <strong>⚠ El tipo de cambio se guarda como snapshot</strong>
+              El valor de cambio que ingresás queda grabado en la compra para siempre.
+              Si después actualizás el tipo de cambio del sistema, esta compra no cambia.
+              Eso es intencional: los costos históricos deben reflejar el cambio del día de la compra.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">4</div>
+          <div class="step-body">
+            <h3>Agregar productos a la compra</h3>
+            <p>
+              En la sección <strong>Ítems</strong>, en el panel <em>"Agregar ítem"</em>,
+              buscá el producto por nombre, SKU o código de barras en el campo
+              <span class="field">Buscar producto (SKU, nombre)…</span>.
+              Seleccionalo de la lista desplegable.
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Después completá los campos del ítem:
+            </p>
+            <ul class="field-list">
+              <li>
+                <span class="field">Unidad…</span>
+                <span> — Unidad de compra (ej: caja, rollo, docena). Se carga automáticamente con la unidad de compra por defecto del producto.</span>
+              </li>
+              <li>
+                <span class="field">IVA</span>
+                <span> — Tasa de IVA del ítem: <code>0% (exento)</code>, <code>5%</code> o <code>10%</code>. Se carga automáticamente desde el producto y podés cambiarla si hace falta.</span>
+              </li>
+              <li>
+                <span class="field">Cant.</span>
+                <span> — Cantidad comprada, en la unidad seleccionada.</span>
+              </li>
+              <li>
+                <span class="field">Costo (PYG)</span>
+                <span> — Costo unitario en la moneda de la compra.</span>
+              </li>
+            </ul>
+            <p style="margin-top: 0.5rem;">
+              Presioná <span class="btn-sec">+ Agregar ítem</span> o simplemente la tecla
+              <kbd>Enter</kbd> para sumarlo a la lista. Para limpiar el formulario sin agregar,
+              presioná <kbd>Esc</kbd>.
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Repetí este proceso para cada producto de la compra.
+              Podés quitar un ítem usando el icono de basura (<strong>✕</strong>) en su fila.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">5</div>
+          <div class="step-body">
+            <h3>El IVA por ítem: qué significa cada opción</h3>
+            <p>
+              El campo <span class="field">IVA</span> de cada ítem indica cómo está gravado
+              ese producto en Paraguay:
+            </p>
+            <ul class="field-list">
+              <li><strong>0% (exento)</strong><span> — El producto no tiene IVA. El costo es la base imponible directa.</span></li>
+              <li><strong>5%</strong><span> — IVA reducido. Aplica a ciertos alimentos básicos y productos específicos.</span></li>
+              <li><strong>10%</strong><span> — IVA general. Es la tasa por defecto en la mayoría de los productos.</span></li>
+            </ul>
+            <p style="margin-top: 0.5rem;">
+              El sistema indica automáticamente si el precio del producto
+              <em>incluye IVA</em> o es <em>precio sin IVA</em>,
+              y hace el cálculo de subtotal e IVA correspondiente.
+              Podés ver el desglose en el resumen al pie del formulario:
+              <em>Subtotal</em>, <em>IVA</em>, <em>Total</em>.
+            </p>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">6</div>
+          <div class="step-body">
+            <h3>Guardar como borrador o confirmar</h3>
+            <p>
+              Tenés dos opciones al pie del formulario:
+            </p>
+            <ul class="field-list">
+              <li>
+                <span class="btn-sec">Guardar como borrador</span>
+                <span> — Guarda la compra sin confirmar. Podés retomar, editar y agregar ítems en otro momento. El stock <em>no</em> se actualiza todavía.</span>
+              </li>
+              <li>
+                <span class="btn">Confirmar compra</span>
+                <span> — Abre un resumen para revisar los ítems. Al confirmar, el stock del depósito se actualiza y el costo promedio de cada producto se recalcula.</span>
+              </li>
+            </ul>
+            <div class="warning">
+              <strong>⚠ Una compra confirmada no se puede editar</strong>
+              Una vez que confirmás, los datos quedan bloqueados. Si cometiste un error,
+              la única opción es cancelar la compra (ver paso siguiente).
+              Revisá bien los ítems, cantidades y costos antes de confirmar.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">7</div>
+          <div class="step-body">
+            <h3>Cancelar una compra confirmada</h3>
+            <p>
+              Desde el detalle de una compra <span class="badge badge-ok">Confirmada</span>,
+              presioná el botón <span class="btn-danger">Cancelar compra</span>.
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Se abre el modal <em>"Cancelar compra"</em>. El sistema avisa:
+              <em>"Se generarán movimientos compensatorios en el stock. Esta acción no se puede deshacer."</em>
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Completá el campo obligatorio
+              <span class="field">Motivo de cancelación *</span>
+              con una explicación breve (por ejemplo: <em>"Factura duplicada"</em>,
+              <em>"Proveedor equivocado"</em>). El motivo queda registrado en el historial
+              de la compra.
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Presioná <span class="btn-danger">Cancelar compra</span> para confirmar.
+              El stock vuelve al valor anterior automáticamente.
+            </p>
+            <div class="warning">
+              <strong>⚠ El motivo de cancelación es obligatorio</strong>
+              El botón de confirmar permanece bloqueado hasta que escribas algo en el campo
+              <span class="field">Motivo de cancelación</span>. No podés cancelar sin dejar
+              una explicación.
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-number">8</div>
+          <div class="step-body">
+            <h3>Eliminar un borrador</h3>
+            <p>
+              Si guardaste un borrador y ya no lo necesitás, abrilo desde la lista de compras
+              y presioná <span class="btn-danger">Eliminar borrador</span> en la esquina superior
+              derecha. El sistema pide confirmación antes de borrarlo definitivamente.
+            </p>
+            <p style="margin-top: 0.5rem;">
+              Solo los borradores se pueden eliminar. Las compras confirmadas o canceladas
+              quedan en el historial para siempre.
+            </p>
+          </div>
+        </li>
+
+      </ol>
+    </section>
+
+    <!-- ─── SECCIÓN 3: CONSEJOS / ERRORES COMUNES ───────────────────── -->
+    <section>
+      <h2>Consejos / Errores comunes</h2>
+      <ul class="tip-list">
+
+        <li class="tip">
+          <strong>El proveedor no aparece en la búsqueda</strong>
+          <span>
+            El campo <span class="field">Proveedor</span> solo muestra contactos marcados
+            como <em>proveedor</em> en el módulo de Contactos. Si no encontrás al proveedor,
+            primero tenés que crearlo allí y después volver a registrar la compra.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>El producto no aparece en la búsqueda de ítems</strong>
+          <span>
+            Solo aparecen productos activos. Si el producto fue eliminado o desactivado,
+            no va a mostrar resultados. Revisá su estado en el módulo de Productos.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>El campo "Confirmar compra" está bloqueado (gris)</strong>
+          <span>
+            El botón <span class="btn">Confirmar compra</span> se activa cuando:
+            hay al menos un ítem agregado, el proveedor está seleccionado, la fecha y el
+            depósito están completos, y — si la moneda no es PYG — el tipo de cambio es mayor a cero.
+            Revisá que no falte ninguno de esos campos.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Compré en USD pero los costos del informe se ven en guaraníes</strong>
+          <span>
+            Es el comportamiento esperado. El sistema guarda la compra en la moneda original
+            (USD) y convierte todo a guaraníes usando el tipo de cambio que ingresaste.
+            Los reportes consolidan siempre en guaraníes como moneda base.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Confirmé una compra con un precio equivocado</strong>
+          <span>
+            Si el error es significativo, cancelá la compra con el motivo correspondiente
+            y registrá una nueva con los datos correctos. Si fue un error pequeño de redondeo,
+            podés dejarlo como está y ajustar el costo con el módulo de Ajustes de stock.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>El historial de la compra</strong>
+          <span>
+            Al pie del detalle de cada compra hay una sección <em>"Historial"</em> que muestra
+            quién creó la compra, quién la confirmó y quién la canceló, con fecha y hora.
+            Esto es útil para auditoría interna.
+          </span>
+        </li>
+
+        <li class="tip">
+          <strong>Filtrar compras por estado, proveedor o fecha</strong>
+          <span>
+            En la lista de compras, usá los selectores de la parte superior para filtrar por
+            <span class="field">Borrador</span> / <span class="field">Confirmada</span> /
+            <span class="field">Cancelada</span>, por proveedor, o por rango de fechas.
+            Podés combinar los filtros. Para limpiarlos, volvé a seleccionar
+            <em>"Todos los estados"</em> y <em>"Todos los proveedores"</em>.
+          </span>
+        </li>
+
+      </ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Ante cualquier duda, contactá a tu administrador. · <a href="index.html">Volver al índice</a></p>
+  </footer>
+
+
+  <a href="index.html" class="back-to-menu" style="position:fixed;bottom:24px;right:24px;z-index:999;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 20px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;">&#8592; Men&#250;</a>
+  <style>@media print{.back-to-menu{display:none}}</style>
+</body>
+</html>
