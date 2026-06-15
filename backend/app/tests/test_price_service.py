@@ -1,18 +1,39 @@
-"""Unit tests for price_service — append-only pricing, date conflict checks, and history."""
-from datetime import date
+"""Unit tests for price_service — current price lookup, flexible add, history, edit and delete."""
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.schemas.prices import PriceCreate
+import app.services.settings_service as _settings_svc
+from app.exceptions import PriceHasSalesError, ResourceNotFoundError
+from app.schemas.prices import PriceCreate, PriceUpdate
 from app.services.price_service import (
-    PriceDateConflictError,
     add_price,
+    can_edit_price,
+    compute_is_current,
+    delete_price,
     get_current_price,
     get_price_history,
+    update_price,
 )
+
+_PYT = ZoneInfo("America/Asuncion")
+
+
+@pytest.fixture(autouse=True)
+def _seed_settings_cache():
+    """Pre-popula el caché de settings para que can_edit_price no intente hacer DB queries
+    adicionales cuando se llama sin business_tz explícito (ej. desde update_price/delete_price)."""
+    old_cache = _settings_svc._cache
+    old_time = _settings_svc._cache_time
+    _settings_svc._cache = {"business_timezone": "America/Asuncion", "low_stock_default_threshold": "5"}
+    _settings_svc._cache_time = float("inf")
+    yield
+    _settings_svc._cache = old_cache
+    _settings_svc._cache_time = old_time
 
 
 # ---------------------------------------------------------------------------
@@ -66,20 +87,53 @@ def _db_single_execute(result_mock) -> AsyncMock:
 
 
 class TestGetCurrentPrice:
-    async def test_returns_price_when_found(self):
-        price = _make_price()
+    async def test_returns_price_with_effective_from_today(self):
+        """Precio cuya effective_from == hoy es vigente."""
+        today = date.today()
+        price = _make_price(effective_from=today)
         db = _db_single_execute(_scalar_one_or_none(price))
 
         result = await get_current_price(db, uuid4(), "PYG")
 
         assert result is price
 
-    async def test_returns_none_when_no_active_price(self):
+    async def test_returns_none_when_only_future_price_exists(self):
+        """Precio con effective_from en el futuro NO es vigente hoy."""
         db = _db_single_execute(_scalar_one_or_none(None))
 
         result = await get_current_price(db, uuid4(), "PYG")
 
         assert result is None
+
+    async def test_as_of_date_past_returns_price_valid_then(self):
+        """as_of_date en el pasado devuelve el precio vigente en esa fecha."""
+        price = _make_price(effective_from=date(2020, 1, 1))
+        db = _db_single_execute(_scalar_one_or_none(price))
+
+        result = await get_current_price(db, uuid4(), "PYG", as_of_date=date(2020, 6, 1))
+
+        assert result is price
+
+    async def test_returns_none_when_no_prices_exist(self):
+        """Sin precios cargados → None."""
+        db = _db_single_execute(_scalar_one_or_none(None))
+
+        result = await get_current_price(db, uuid4(), "PYG")
+
+        assert result is None
+
+    async def test_returns_most_recent_past_price_when_multiple_exist(self):
+        """Con varios precios pasados devuelve el más reciente cuya fecha llegó.
+
+        La query tiene ORDER BY effective_from DESC LIMIT 1 — el mock devuelve
+        el resultado que ya haría la BD con ese ordenamiento.
+        """
+        most_recent = _make_price(effective_from=date(2021, 1, 1))
+        db = _db_single_execute(_scalar_one_or_none(most_recent))
+
+        result = await get_current_price(db, uuid4(), "PYG", as_of_date=date(2022, 1, 1))
+
+        assert result is most_recent
 
     async def test_executes_one_query(self):
         db = _db_single_execute(_scalar_one_or_none(None))
@@ -95,64 +149,67 @@ class TestGetCurrentPrice:
 
 
 class TestAddPrice:
-    async def test_first_price_requires_no_date_restriction(self):
-        """No previous entry → any effective_from is accepted."""
+    async def test_any_past_date_is_accepted(self):
+        """Date earlier than any hypothetical existing price is accepted at service level."""
         data = PriceCreate(
             id=uuid4(),
             currency_code="PYG",
             price=Decimal("10000.00"),
-            effective_from=date(2020, 1, 1),  # old date is fine when no prior entry exists
+            effective_from=date(2020, 1, 1),
         )
-        db = _db_with_side_effects([_scalar_one_or_none(None)])
+        db = AsyncMock()
+        db.add = MagicMock()
 
         result = await add_price(db, uuid4(), data=data, user_id=uuid4())
 
         db.add.assert_called_once()
         assert result.effective_from == date(2020, 1, 1)
 
-    async def test_raises_when_date_is_before_latest(self):
-        latest = _make_price(effective_from=date(2025, 6, 1))
+    async def test_allows_date_before_latest(self):
+        """Date before any existing price is now allowed — UNIQUE constraint is the only gate."""
         data = PriceCreate(
             id=uuid4(),
             currency_code="PYG",
             price=Decimal("12000.00"),
-            effective_from=date(2025, 5, 1),  # before latest — rejected
+            effective_from=date(2025, 5, 1),
         )
-        db = _db_with_side_effects([_scalar_one_or_none(latest)])
-
-        with pytest.raises(PriceDateConflictError) as exc_info:
-            await add_price(db, uuid4(), data=data, user_id=uuid4())
-
-        assert exc_info.value.latest_date == date(2025, 6, 1)
-
-    async def test_allows_same_date_as_latest(self):
-        """effective_from == latest.effective_from is allowed (>= check)."""
-        latest = _make_price(effective_from=date(2025, 6, 1))
-        data = PriceCreate(
-            id=uuid4(),
-            currency_code="PYG",
-            price=Decimal("15000.00"),
-            effective_from=date(2025, 6, 1),
-        )
-        db = _db_with_side_effects([_scalar_one_or_none(latest)])
+        db = AsyncMock()
+        db.add = MagicMock()
 
         result = await add_price(db, uuid4(), data=data, user_id=uuid4())
 
         db.add.assert_called_once()
+        assert result.effective_from == date(2025, 5, 1)
 
-    async def test_allows_later_date(self):
-        latest = _make_price(effective_from=date(2025, 6, 1))
+    async def test_allows_future_date(self):
+        """Future effective_from is accepted — becomes vigente on that date."""
         data = PriceCreate(
             id=uuid4(),
             currency_code="PYG",
             price=Decimal("15000.00"),
-            effective_from=date(2025, 7, 1),
+            effective_from=date(2099, 1, 1),
         )
-        db = _db_with_side_effects([_scalar_one_or_none(latest)])
+        db = AsyncMock()
+        db.add = MagicMock()
 
         result = await add_price(db, uuid4(), data=data, user_id=uuid4())
 
-        assert result.effective_from == date(2025, 7, 1)
+        assert result.effective_from == date(2099, 1, 1)
+
+    async def test_executes_no_database_query(self):
+        """add_price only inserts — no SELECT queries needed."""
+        data = PriceCreate(
+            id=uuid4(),
+            currency_code="PYG",
+            price=Decimal("1000.00"),
+            effective_from=date(2025, 1, 1),
+        )
+        db = AsyncMock()
+        db.add = MagicMock()
+
+        await add_price(db, uuid4(), data=data, user_id=uuid4())
+
+        db.execute.assert_not_called()
 
     async def test_sets_created_by_user_id(self):
         user_id = uuid4()
@@ -162,7 +219,8 @@ class TestAddPrice:
             price=Decimal("10.00"),
             effective_from=date(2025, 1, 1),
         )
-        db = _db_with_side_effects([_scalar_one_or_none(None)])
+        db = AsyncMock()
+        db.add = MagicMock()
 
         result = await add_price(db, uuid4(), data=data, user_id=user_id)
 
@@ -178,7 +236,8 @@ class TestAddPrice:
             effective_from=date(2025, 3, 15),
             notes="Ajuste por inflación",
         )
-        db = _db_with_side_effects([_scalar_one_or_none(None)])
+        db = AsyncMock()
+        db.add = MagicMock()
 
         result = await add_price(db, product_unit_id, data=data, user_id=uuid4())
 
@@ -196,24 +255,12 @@ class TestAddPrice:
             price=Decimal("0"),
             effective_from=date(2025, 1, 1),
         )
-        db = _db_with_side_effects([_scalar_one_or_none(None)])
+        db = AsyncMock()
+        db.add = MagicMock()
 
         result = await add_price(db, uuid4(), data=data, user_id=uuid4())
 
         assert result.price == Decimal("0")
-
-    async def test_executes_one_query_for_date_check(self):
-        data = PriceCreate(
-            id=uuid4(),
-            currency_code="PYG",
-            price=Decimal("1000.00"),
-            effective_from=date(2025, 1, 1),
-        )
-        db = _db_with_side_effects([_scalar_one_or_none(None)])
-
-        await add_price(db, uuid4(), data=data, user_id=uuid4())
-
-        db.execute.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -256,3 +303,246 @@ class TestGetPriceHistory:
         await get_price_history(db, uuid4(), "PYG")
 
         db.execute.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Helpers for can_edit / update / delete tests
+# ---------------------------------------------------------------------------
+
+
+def _scalar_one(value):
+    r = MagicMock()
+    r.scalar_one.return_value = value
+    return r
+
+
+def _db_get_and_executes(get_value, execute_results: list) -> AsyncMock:
+    """DB mock where db.get returns get_value and db.execute returns results in order."""
+    db = AsyncMock()
+    db.get.return_value = get_value
+    db.execute.side_effect = execute_results
+    db.add = MagicMock()
+    db.delete = AsyncMock()
+    return db
+
+
+# ---------------------------------------------------------------------------
+# TestCanEditPrice
+# ---------------------------------------------------------------------------
+
+
+class TestCanEditPrice:
+    async def test_returns_true_when_price_not_found(self):
+        """Missing price → can_edit=False, count=0 (safe default)."""
+        db = AsyncMock()
+        db.get.return_value = None
+
+        can_edit, count = await can_edit_price(db, uuid4())
+
+        assert can_edit is False
+        assert count == 0
+
+    async def test_returns_true_when_no_confirmed_sales(self):
+        price = _make_price(effective_from=date(2025, 6, 1))
+        db = _db_get_and_executes(
+            price,
+            [
+                _scalar_one_or_none(None),  # no next price
+                _scalar_one(0),             # 0 confirmed sales
+            ],
+        )
+
+        can_edit, count = await can_edit_price(db, price.id, business_tz=_PYT)
+
+        assert can_edit is True
+        assert count == 0
+
+    async def test_returns_false_when_confirmed_sales_exist(self):
+        price = _make_price(effective_from=date(2025, 6, 1))
+        db = _db_get_and_executes(
+            price,
+            [
+                _scalar_one_or_none(None),  # no next price
+                _scalar_one(3),             # 3 confirmed sales
+            ],
+        )
+
+        can_edit, count = await can_edit_price(db, price.id, business_tz=_PYT)
+
+        assert can_edit is False
+        assert count == 3
+
+    async def test_uses_next_price_to_bound_period(self):
+        """When a next price exists, the query should include the upper bound."""
+        price = _make_price(effective_from=date(2025, 6, 1))
+        next_price = _make_price(effective_from=date(2025, 7, 1))
+        db = _db_get_and_executes(
+            price,
+            [
+                _scalar_one_or_none(next_price),
+                _scalar_one(0),
+            ],
+        )
+
+        can_edit, count = await can_edit_price(db, price.id, business_tz=_PYT)
+
+        assert can_edit is True
+        # The second execute call contains the sales count query with a date bound
+        assert db.execute.call_count == 2
+
+    async def test_accepts_price_object_skips_db_get(self):
+        """Passing price= kwarg avoids the db.get round-trip."""
+        price = _make_price(effective_from=date(2025, 1, 1))
+        db = AsyncMock()
+        db.execute.side_effect = [
+            _scalar_one_or_none(None),
+            _scalar_one(0),
+        ]
+
+        can_edit, _ = await can_edit_price(db, price.id, price=price, business_tz=_PYT)
+
+        db.get.assert_not_called()
+        assert can_edit is True
+
+    async def test_sale_at_utc_midnight_crossing_assigned_to_correct_price(self):
+        """Venta a las 21:15 PYT del día 14 (= 00:15 UTC del día 15) debe atribuirse
+        al precio vigente desde el 14, no al del 15.
+        Con business_tz PYT (UTC-4), la ventana de P1 arranca a las 04:00 UTC
+        del día 14, por lo que la venta sí cae dentro y can_edit es False."""
+        price = _make_price(effective_from=date(2026, 6, 14))
+        db = _db_get_and_executes(
+            price,
+            [
+                _scalar_one_or_none(None),  # no next price
+                _scalar_one(1),             # 1 venta confirmada que cruza medianoche UTC
+            ],
+        )
+
+        can_edit, count = await can_edit_price(
+            db, price.id, business_tz=_PYT
+        )
+
+        assert can_edit is False
+        assert count == 1
+
+
+# ---------------------------------------------------------------------------
+# TestUpdatePrice
+# ---------------------------------------------------------------------------
+
+
+class TestUpdatePrice:
+    async def test_raises_not_found_when_price_missing(self):
+        db = AsyncMock()
+        db.get.return_value = None
+
+        with pytest.raises(ResourceNotFoundError):
+            await update_price(db, uuid4(), new_data=PriceUpdate(price=Decimal("999")), user_id=uuid4())
+
+    async def test_raises_409_when_price_has_sales(self):
+        price = _make_price(price=Decimal("10000"))
+        db = _db_get_and_executes(
+            price,
+            [
+                _scalar_one_or_none(None),
+                _scalar_one(2),  # 2 sales → cannot edit
+            ],
+        )
+
+        with pytest.raises(PriceHasSalesError) as exc_info:
+            await update_price(db, price.id, new_data=PriceUpdate(price=Decimal("9000")), user_id=uuid4())
+
+        assert exc_info.value.sales_count == 2
+
+    async def test_updates_price_value(self):
+        price = _make_price(price=Decimal("10000"), effective_from=date(2025, 6, 1))
+        db = _db_get_and_executes(
+            price,
+            [
+                _scalar_one_or_none(None),
+                _scalar_one(0),
+            ],
+        )
+
+        result = await update_price(
+            db, price.id, new_data=PriceUpdate(price=Decimal("9500")), user_id=uuid4()
+        )
+
+        assert result.price == Decimal("9500")
+
+    async def test_updates_notes(self):
+        price = _make_price()
+        price.notes = None
+        db = _db_get_and_executes(
+            price,
+            [_scalar_one_or_none(None), _scalar_one(0)],
+        )
+
+        await update_price(db, price.id, new_data=PriceUpdate(notes="ajuste"), user_id=uuid4())
+
+        assert price.notes == "ajuste"
+
+    async def test_records_audit_log(self):
+        from app.models.audit import AuditLog
+
+        price = _make_price(price=Decimal("10000"))
+        db = _db_get_and_executes(
+            price,
+            [_scalar_one_or_none(None), _scalar_one(0)],
+        )
+
+        await update_price(db, price.id, new_data=PriceUpdate(price=Decimal("8000")), user_id=uuid4())
+
+        audit_calls = [c[0][0] for c in db.add.call_args_list if isinstance(c[0][0], AuditLog)]
+        assert len(audit_calls) == 1
+        assert audit_calls[0].action.value == "update"
+
+
+# ---------------------------------------------------------------------------
+# TestDeletePrice
+# ---------------------------------------------------------------------------
+
+
+class TestDeletePrice:
+    async def test_raises_not_found_when_price_missing(self):
+        db = AsyncMock()
+        db.get.return_value = None
+
+        with pytest.raises(ResourceNotFoundError):
+            await delete_price(db, uuid4(), uuid4())
+
+    async def test_raises_409_when_price_has_sales(self):
+        price = _make_price()
+        db = _db_get_and_executes(
+            price,
+            [_scalar_one_or_none(None), _scalar_one(1)],
+        )
+
+        with pytest.raises(PriceHasSalesError):
+            await delete_price(db, price.id, uuid4())
+
+    async def test_deletes_price_when_no_sales(self):
+        price = _make_price()
+        db = _db_get_and_executes(
+            price,
+            [_scalar_one_or_none(None), _scalar_one(0)],
+        )
+
+        await delete_price(db, price.id, uuid4())
+
+        db.delete.assert_called_once_with(price)
+
+    async def test_records_audit_log_before_delete(self):
+        from app.models.audit import AuditLog
+
+        price = _make_price()
+        db = _db_get_and_executes(
+            price,
+            [_scalar_one_or_none(None), _scalar_one(0)],
+        )
+
+        await delete_price(db, price.id, uuid4())
+
+        audit_calls = [c[0][0] for c in db.add.call_args_list if isinstance(c[0][0], AuditLog)]
+        assert len(audit_calls) == 1
+        assert audit_calls[0].action.value == "delete"

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -268,8 +268,8 @@ async def get_movements(
     warehouse_id: UUID | None = None,
     reference_type: StockReferenceType | None = None,
     reference_id: UUID | None = None,
-    date_from: datetime | None = None,
-    date_to: datetime | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     page: int = 1,
     page_size: int = 50,
 ) -> tuple[list[StockMovementOut], int]:
@@ -286,10 +286,12 @@ async def get_movements(
         base = base.where(StockMovement.reference_type == reference_type)
     if reference_id is not None:
         base = base.where(StockMovement.reference_id == reference_id)
-    if date_from is not None:
-        base = base.where(StockMovement.created_at >= date_from)
-    if date_to is not None:
-        base = base.where(StockMovement.created_at <= date_to)
+    if date_from is not None or date_to is not None:
+        tz = await settings_service.get_business_timezone(db)
+        if date_from is not None:
+            base = base.where(StockMovement.created_at >= datetime.combine(date_from, time.min, tzinfo=tz))
+        if date_to is not None:
+            base = base.where(StockMovement.created_at < datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=tz))
 
     total = (
         await db.execute(select(func.count()).select_from(base.subquery()))

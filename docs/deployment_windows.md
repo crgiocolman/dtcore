@@ -741,30 +741,107 @@ Get-Service | Where-Object { $_.Name -like "*dtcore*" -or $_.Name -like "postgre
 
 ## Procedimiento de actualizaciones
 
+Antes de actualizar, identificar qué archivos cambiaron para saber qué pasos son necesarios:
+
 ```powershell
-# 1. Bajar cambios
+cd C:\dtcore
+git fetch
+git log HEAD..origin/main --oneline          # commits nuevos
+git diff HEAD..origin/main --name-only       # archivos que cambian
+```
+
+### Tabla de decisión
+
+| Qué cambió                                             | Pasos requeridos                                                                   |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Solo frontend (`.tsx`, `.ts`, `.css`)                  | git pull → rebuild frontend → reload nginx                                         |
+| Solo backend `.py` sin migraciones ni seed             | git pull → restart backend                                                         |
+| Backend `.py` con nuevas migraciones Alembic           | git pull → stop backend → `pip install` → `alembic upgrade head` → start backend   |
+| Backend `.py` con nuevos paquetes (`requirements.txt`) | git pull → stop backend → `pip install -r requirements.txt` → start backend        |
+| **Nuevo setting en seed** (`seed/settings.py`)         | git pull → stop backend → `pip install` → `python -m app.seed.run` → start backend |
+| Frontend + backend combinado                           | todos los pasos anteriores que apliquen                                            |
+
+> **Cómo distinguir "migraciones" de "seed":** una migración Alembic agrega/modifica columnas o tablas (archivos en `alembic/versions/`). Un seed agrega filas de configuración a tablas existentes (archivos en `app/seed/`). Ambos pueden aparecer en el mismo update — correr ambos si es el caso.
+
+---
+
+### Paso 0 — Bajar cambios (siempre)
+
+```powershell
 cd C:\dtcore
 git pull
+```
 
-# 2. Actualizar backend
+---
+
+### Paso 1 — Backend con cambios en `.py`
+
+```powershell
+cd C:\dtcore\tools
+.\nssm.exe stop dtcore-backend
+```
+
+**Si `requirements.txt` cambió** (nuevo paquete):
+
+```powershell
 cd C:\dtcore\backend
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-alembic upgrade head
+```
 
-# 3. Rebuild frontend
+**Si hay nuevas migraciones Alembic** (archivos nuevos en `alembic/versions/`):
+
+```powershell
+cd C:\dtcore\backend
+.venv\Scripts\Activate.ps1
+alembic upgrade head
+```
+
+**Si hay nuevos settings en el seed** (cambios en `app/seed/settings.py` u otros archivos de `app/seed/`):
+
+```powershell
+cd C:\dtcore\backend
+.venv\Scripts\Activate.ps1
+python -m app.seed.run
+```
+
+El seed usa `ON CONFLICT DO NOTHING` — es seguro correrlo siempre, no sobrescribe datos existentes. Ante la duda, correrlo.
+
+Reiniciar el backend:
+
+```powershell
+cd C:\dtcore\tools
+.\nssm.exe start dtcore-backend
+```
+
+---
+
+### Paso 2 — Frontend con cambios en `.tsx`, `.ts`, `.css`
+
+```powershell
 cd C:\dtcore\frontend
 npm install
 npm run build
-
-# 4. Reiniciar servicios
-cd C:\dtcore\tools
-.\nssm.exe restart dtcore-backend
-.\nssm.exe restart dtcore-nginx
-# PostgreSQL no necesita reinicio salvo cambios de configuración
+C:\dtcore\nginx\nginx.exe -s reload
 ```
 
-Hacer smoke test reducido (puntos 5, 6, 7, 8 de la lista anterior) después de cada actualización.
+---
+
+### Verificación post-update
+
+```powershell
+cd C:\dtcore\tools
+.\nssm.exe status dtcore-backend   # SERVICE_RUNNING
+.\nssm.exe status dtcore-nginx     # SERVICE_RUNNING
+```
+
+En el browser:
+
+1. Abrir `https://localhost` → carga el login
+2. Login con admin → entra al dashboard
+3. Verificar la funcionalidad modificada
+
+Hacer smoke test completo (puntos 5–10 de la lista de instalación) si el update involucró migraciones o cambios en flujos críticos (POS, compras, stock).
 
 ---
 

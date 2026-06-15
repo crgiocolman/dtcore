@@ -143,8 +143,8 @@ export function fetchSales(params: SaleListParams = {}): Promise<SaleListOut> {
   if (params.page_size) q.set('page_size', String(params.page_size))
   if (params.status) q.set('status', params.status)
   if (params.customer_id) q.set('customer_id', params.customer_id)
-  if (params.date_from) q.set('date_from', params.date_from + 'T00:00:00')
-  if (params.date_to) q.set('date_to', params.date_to + 'T23:59:59')
+  if (params.date_from) q.set('date_from', params.date_from)
+  if (params.date_to) q.set('date_to', params.date_to)
   return apiFetch<SaleListOut>(`/sales?${q}`)
 }
 

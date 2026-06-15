@@ -1,5 +1,5 @@
 import logging
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -64,7 +64,10 @@ async def sales_by_period(
     group_by: Literal["day", "week", "month"] = "day",
     warehouse_id: UUID | None = None,
 ) -> SalesByPeriodOut:
-    period_col = func.date_trunc(group_by, Sale.sale_date).label("period")
+    tz_name: str = await settings_service.get_setting(db, "business_timezone")
+    local_ts = func.timezone(tz_name, Sale.sale_date)
+    period_col = func.date_trunc(group_by, local_ts).label("period")
+    local_date = func.date(local_ts)
 
     stmt = (
         select(
@@ -74,8 +77,8 @@ async def sales_by_period(
         )
         .where(
             Sale.status == SaleStatus.CONFIRMED,
-            func.date(Sale.sale_date) >= date_from,
-            func.date(Sale.sale_date) <= date_to,
+            local_date >= date_from,
+            local_date <= date_to,
             Sale.deleted_at.is_(None),
         )
         .group_by(period_col)
@@ -117,6 +120,8 @@ async def top_products(
     limit: int = 10,
     warehouse_id: UUID | None = None,
 ) -> TopProductsOut:
+    tz_name: str = await settings_service.get_setting(db, "business_timezone")
+    local_date = func.date(func.timezone(tz_name, Sale.sale_date))
     item_total_pyg = (SaleItem.total * Sale.exchange_rate).label("item_total_pyg")
 
     stmt = (
@@ -131,8 +136,8 @@ async def top_products(
         .join(Product, SaleItem.product_id == Product.id)
         .where(
             Sale.status == SaleStatus.CONFIRMED,
-            func.date(Sale.sale_date) >= date_from,
-            func.date(Sale.sale_date) <= date_to,
+            local_date >= date_from,
+            local_date <= date_to,
             Sale.deleted_at.is_(None),
             Product.deleted_at.is_(None),
         )
@@ -178,6 +183,8 @@ async def profit_by_product(
     date_to: date,
     warehouse_id: UUID | None = None,
 ) -> ProfitByProductOut:
+    tz_name: str = await settings_service.get_setting(db, "business_timezone")
+    local_date = func.date(func.timezone(tz_name, Sale.sale_date))
     revenue_col = (SaleItem.total * Sale.exchange_rate).label("revenue_pyg")
     cost_col = (SaleItem.quantity_base * SaleItem.unit_cost_base_at_sale).label("cost_pyg")
 
@@ -193,8 +200,8 @@ async def profit_by_product(
         .join(Product, SaleItem.product_id == Product.id)
         .where(
             Sale.status == SaleStatus.CONFIRMED,
-            func.date(Sale.sale_date) >= date_from,
-            func.date(Sale.sale_date) <= date_to,
+            local_date >= date_from,
+            local_date <= date_to,
             Sale.deleted_at.is_(None),
             Product.deleted_at.is_(None),
         )
@@ -358,15 +365,18 @@ async def movements_by_product(
 ) -> KardexOut:
     resolved_wid = await _resolve_warehouse(db, warehouse_id)
 
+    tz_name: str = await settings_service.get_setting(db, "business_timezone")
+    local_date = func.date(func.timezone(tz_name, StockMovement.created_at))
+
     stmt = select(StockMovement).where(
         StockMovement.product_id == product_id,
         StockMovement.warehouse_id == resolved_wid,
     )
 
     if date_from is not None:
-        stmt = stmt.where(StockMovement.created_at >= date_from)
+        stmt = stmt.where(local_date >= date_from)
     if date_to is not None:
-        stmt = stmt.where(StockMovement.created_at < date(date_to.year, date_to.month, date_to.day) + timedelta(days=1))
+        stmt = stmt.where(local_date <= date_to)
 
     stmt = stmt.order_by(StockMovement.created_at.asc())
 

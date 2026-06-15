@@ -1,6 +1,6 @@
 import logging
 import math
-from datetime import datetime
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -104,8 +104,8 @@ def _sale_to_out(sale, items, payments, customer_name, names: dict | None = None
 async def list_sales(
     customer_id: UUID | None = Query(None),
     status: SaleStatus | None = Query(None),
-    date_from: datetime | None = Query(None),
-    date_to: datetime | None = Query(None),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
     warehouse_id: UUID | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),

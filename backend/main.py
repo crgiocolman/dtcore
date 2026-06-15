@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from app.api.auth import router as auth_router
 from app.api.categories import router as categories_router
 from app.api.contacts import router as contacts_router
-from app.api.prices import router as prices_router
+from app.api.prices import router as prices_router, router_standalone as prices_standalone_router
 from app.api.product_units import router as product_units_router
 from app.api.products import router as products_router
 from app.api.currencies import router as currencies_router
@@ -95,15 +95,34 @@ async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSON
     constraint = getattr(getattr(orig, "diag", None), "constraint_name", None)
     detail_str = str(orig) if orig else str(exc)
 
+    if constraint == "uq_product_prices_unit_currency_date" or (
+        "uq_product_prices_unit_currency_date" in detail_str
+    ):
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": {
+                    "code": "duplicate_price_date",
+                    "message": (
+                        "Ya existe un precio para esta unidad y moneda con esa fecha de vigencia. "
+                        "Eliminá el existente o cargá con otra fecha."
+                    ),
+                    "constraint": "uq_product_prices_unit_currency_date",
+                }
+            },
+        )
+
     if "unique" in detail_str.lower() or (constraint and "uq_" in constraint):
-        content = {
-            "detail": {
-                "code": "duplicate_value",
-                "message": "Ya existe un registro con esos valores",
-                "constraint": constraint or "unknown",
-            }
-        }
-        return JSONResponse(status_code=409, content=content)
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": {
+                    "code": "duplicate_value",
+                    "message": "Ya existe un registro con esos valores",
+                    "constraint": constraint or "unknown",
+                }
+            },
+        )
 
     return JSONResponse(
         status_code=409,
@@ -141,6 +160,7 @@ app.include_router(contacts_router, prefix="/api/v1/contacts", tags=["contacts"]
 app.include_router(products_router, prefix="/api/v1/products", tags=["products"])
 app.include_router(product_units_router, prefix="/api/v1/products", tags=["product-units"])
 app.include_router(prices_router, prefix="/api/v1/products", tags=["prices"])
+app.include_router(prices_standalone_router, prefix="/api/v1/prices", tags=["prices"])
 app.include_router(currencies_router, prefix="/api/v1/currencies", tags=["currencies"])
 app.include_router(exchange_rates_router, prefix="/api/v1/exchange-rates", tags=["exchange-rates"])
 app.include_router(settings_router, prefix="/api/v1/settings", tags=["settings"])

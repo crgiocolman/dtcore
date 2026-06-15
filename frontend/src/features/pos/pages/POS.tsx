@@ -23,7 +23,7 @@ import { fetchLowStock } from '../../dashboard/api/reports'
 import { fetchWarehouses } from '../../admin/api/warehouses'
 import type { UnitType } from '../../admin/api/unit_catalog'
 import { fetchContacts, type ContactOut } from '../../contacts/api/contacts'
-import { fetchPriceHistory } from '../../products/api/prices'
+import { fetchCurrentPrice } from '../../products/api/prices'
 import { searchProducts, type ProductSearchResult } from '../../products/api/products'
 import { fetchUnits, type ProductUnitOut } from '../../products/api/units'
 import { useAuthStore } from '../../auth/store'
@@ -764,12 +764,8 @@ export function POS() {
   const loadUnitPrice = useCallback(async (productId: string, unitId: string) => {
     setLoadingPrice(true)
     try {
-      const prices = await fetchPriceHistory(productId, unitId, 'PYG')
-      if (prices.length > 0) {
-        setNewItemPrice(String(parseFloat(prices[0].price)))
-      } else {
-        setNewItemPrice('')
-      }
+      const current = await fetchCurrentPrice(productId, unitId, 'PYG')
+      setNewItemPrice(current ? String(parseFloat(current.price)) : '')
     } catch {
       setNewItemPrice('')
     } finally {

@@ -304,6 +304,46 @@ Los tests unitarios del backend, en cambio, valen oro: lock pesimista, CPP, tran
 
 ---
 
+## Edición de precios post-creación
+
+**Decisión:** Los precios (`product_prices`) son editables y eliminables mientras no tengan ventas confirmadas asociadas. Si el precio ya fue usado en al menos una venta confirmada, la edición/eliminación se bloquea con 409 y el usuario debe cargar un precio nuevo con `effective_from` posterior.
+
+**Por qué permitimos editar si no hay ventas (corrección de errores de carga):** Durante la capacitación y los primeros días de uso, los operadores cometen errores tipográficos al ingresar precios. Con la política 100% append-only, no había forma de corregir un precio mal cargado sin agregar ruido al historial (cargar un "precio corrector" con la misma fecha o una fecha fabricada). El valor práctico de corregir un typo antes de que el precio sea usado supera ampliamente el costo de añadir mutabilidad condicional.
+
+**Por qué bloqueamos si hay ventas (integridad de histórico y reportes consistentes):** Una venta confirmada guarda un snapshot de `unit_price` en `sale_items` en el momento de confirmación. Si el precio original en `product_prices` pudiera editarse después, el histórico de precios dejaría de coincidir con los snapshots de las ventas. Los reportes de utilidad usan `unit_cost_base_at_sale` (snapshot) pero podrían cruzarse con el historial de precios para auditorías. Permitir mutación post-venta crearía inconsistencias silenciosas.
+
+**Cómo se detecta si un precio fue usado:** `SaleItem` no tiene FK directa a `ProductPrice` (los precios son snapshots de valor, no referencias). La detección se hace por inferencia: existen `sale_items` con el mismo `product_unit_id` en ventas confirmadas (`Sale.status = 'confirmed'`) cuya `sale_date` cae dentro del período de vigencia del precio (desde `effective_from` hasta el `effective_from` del precio siguiente, o sin límite si es el precio más reciente).
+
+**Eliminación:** hard delete, sin soft delete. Un precio sin ventas no aporta trazabilidad — es un error de carga que no debería estar en el historial.
+
+**Trade-off aceptado:** un operador podría, en una ventana corta, editar el precio original de una venta si borra esa venta (cancela) antes de editar. No se detecta esto actualmente. Para el volumen y tipo de negocio objetivo (pequeño negocio), este riesgo es aceptable y el audit log registra toda edición/eliminación.
+
+---
+
+## Precio vigente: definición oficial
+
+**Decisión:** Un precio es vigente para una fecha dada si `effective_from <= fecha`. La función canónica es `get_current_price(db, product_unit_id, currency_code, *, as_of_date=None)` en `price_service.py` — si `as_of_date` es `None` usa `date.today()`. **Todo el sistema usa esta definición.** No "el último cargado" ni "el de mayor ID".
+
+**Por qué:** Durante testing se encontró que el POS tomaba `prices[0]` del historial (el de `effective_from` más alto) sin filtrar si esa fecha ya llegó. Si el operador cargaba un precio con vigencia futura, el POS lo mostraba inmediatamente como "precio actual". La ficha de producto filtraba correctamente. Al centralizar la lógica en una función con parámetro `as_of_date`, se elimina la posibilidad de que distintas pantallas calculen "precio vigente" de forma diferente.
+
+**Consecuencia práctica:** si un operador carga un precio con `effective_from` mañana, el POS de hoy NO lo va a mostrar como precio — muestra el precio anterior (o vacío si no hay ninguno vigente). Esto es el comportamiento correcto.
+
+---
+
+## Carga de precios: sin restricción de orden
+
+**Decisión:** Cualquier `effective_from` es válido al cargar un precio. No existe validación de que la nueva fecha sea mayor o igual a la fecha del último precio existente. El único constraint que aplica es `UNIQUE (product_unit_id, currency_code, effective_from)` — no se pueden dos precios con la misma fecha exacta para la misma unidad y moneda.
+
+**Por qué se removió la restricción de orden:** QA encontró un caso legítimo bloqueado: el producto tenía un precio P2 cargado con `effective_from = mañana` (sin ventas aún). El operador intentó cargar P1 con `effective_from = hoy` — el sistema lo rechazaba por `PriceDateConflictError` aunque el resultado sería completamente consistente. La regla original asumía que los precios se cargan cronológicamente, lo que no siempre ocurre en la práctica.
+
+**Por qué la integridad no depende del orden de carga:** El precio vigente se calcula siempre dinámicamente con `get_current_price()` que filtra `effective_from <= as_of_date`. No importa en qué orden se cargaron — el sistema siempre evalúa cuál precio corresponde a una fecha dada. Dos precios con la misma fecha exacta sí serían ambiguos, de ahí el UNIQUE.
+
+**Error en caso de fecha duplicada:** el handler global de `IntegrityError` detecta el constraint `uq_product_prices_unit_currency_date` y devuelve 409 con mensaje específico: "Ya existe un precio para esta unidad y moneda con esa fecha de vigencia. Eliminá el existente o cargá con otra fecha."
+
+**Estado visible en la UI:** el panel "Ver historial" (por unidad/moneda) muestra todos los precios con badge de estado: **Vigente** (el que aplica hoy), **Futuro** (effective_from > hoy), **Histórico** (pasado, ya superado por otro precio).
+
+---
+
 ## Cómo agregar nuevas decisiones
 
 Cuando se tome una decisión que merezca ir a `CLAUDE.md` como regla, agregarla acá con su razonamiento:
@@ -464,3 +504,22 @@ Si se ocultaran las inactivas, la UI daría la sensación de que la unidad "no e
 **localStorage:** El carrito se persiste en `localStorage` con clave `pos_cart_draft`, permitiendo recuperar los ítems tras un F5 accidental antes de llegar al modal de cobro. Se limpia automáticamente al confirmar o al usar "Cancelar venta" (F9).
 
 **Trade-off eliminado:** Se descartó el mecanismo de `pendingSaleId` (retry sobre draft pre-existente) porque causaba el bug: si el usuario editaba el carrito tras un error de stock, el retry intentaba confirmar un draft con ítems stale. El nuevo endpoint hace la creación y confirmación instantáneas, eliminando la necesidad de estado intermedio.
+
+
+### BUG 6 — Ventas nocturnas atribuidas al día UTC incorrecto (timezone)
+
+**Síntoma confirmado con SQL:** venta realizada a las 21:15 hora Paraguay (UTC-4) tiene `sale_date` UTC = día siguiente. El código construía ventanas de vigencia de precios con UTC midnight como referencia, entonces esa venta quedaba atribuida al precio equivocado (`can_edit` y `sales_count` invertidos).
+
+**Decisión arquitectural:** "Día del negocio" se define por la zona horaria del negocio, no UTC. Se agregó setting `business_timezone` (default `America/Asuncion`). Todo cálculo que convierte una fecha sin hora a un timestamp usa este setting como referencia.
+
+**Implementación:**
+- `can_edit_price`: ventanas de vigencia construidas con `datetime.combine(date, time.min, tzinfo=business_tz)` en lugar de UTC midnight
+- `report_service` (`sales_by_period`, `top_products`, `profit_by_product`, `movements_by_product`): filtros de fecha y agrupación usando `func.timezone(tz_name, sale_date)` antes de `date_trunc` y `date()`, lo que equivale a `sale_date AT TIME ZONE tz_name` en SQL
+- Listados con filtros de fecha (`GET /sales`, `GET /stock/movements`): params cambiados de `datetime` a `date`; el service convierte a `datetime.combine(date, time.min, tzinfo=tz)` para el límite inferior y `datetime.combine(date + 1d, time.min, tzinfo=tz)` (exclusivo) para el superior
+
+**Invariantes que NO cambian:**
+- `effective_from` sigue siendo de tipo `date` — el usuario ingresa fechas, no timestamps
+- `sale_date` sigue siendo `timestamptz` — almacena el momento exacto de la venta
+- `GET /purchases` y `GET /adjustments` no requieren cambio: sus campos de fecha son `Date` (sin timezone)
+
+**Multi-país:** cambiar `business_timezone` en settings adapta todos los cálculos sin tocar código.

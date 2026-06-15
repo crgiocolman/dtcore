@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -131,6 +132,11 @@ async def get_setting_row(db: AsyncSession, key: str) -> Setting | None:
 async def get_all_setting_rows(db: AsyncSession) -> list[Setting]:
     result = await db.execute(select(Setting).order_by(Setting.key))
     return list(result.scalars().all())
+
+
+async def get_business_timezone(db: AsyncSession) -> ZoneInfo:
+    tz_name: str = await get_setting(db, "business_timezone")
+    return ZoneInfo(tz_name)
 
 
 # Public alias — safe to import by the API layer

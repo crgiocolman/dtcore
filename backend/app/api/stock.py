@@ -1,6 +1,6 @@
 import logging
 import math
-from datetime import datetime
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -66,8 +66,8 @@ async def list_movements(
     warehouse_id: UUID | None = Query(None),
     reference_type: str | None = Query(None),
     reference_id: UUID | None = Query(None),
-    date_from: datetime | None = Query(None),
-    date_to: datetime | None = Query(None),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_db),

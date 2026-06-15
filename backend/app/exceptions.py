@@ -147,6 +147,21 @@ class InsufficientStockError(BusinessRuleError):
 # ---------------------------------------------------------------------------
 
 
+class PriceHasSalesError(ConflictError):
+    def __init__(self, price_id: UUID, sales_count: int) -> None:
+        self.price_id = price_id
+        self.sales_count = sales_count
+        super().__init__(
+            code="price_has_sales",
+            message=(
+                "No se puede modificar este precio porque ya tiene ventas asociadas. "
+                "Cargá un precio nuevo con fecha posterior."
+            ),
+            price_id=str(price_id),
+            sales_count=sales_count,
+        )
+
+
 class ForbiddenError(DTCoreError):
     status_code = 403
 

@@ -17,7 +17,7 @@ import {
   updateUnit,
   type ProductUnitOut,
 } from '../api/units'
-import { createPrice, fetchPriceHistory, type PriceOut } from '../api/prices'
+import { createPrice, deletePrice, fetchPriceHistory, updatePrice, type PriceOut } from '../api/prices'
 import { fetchCurrencies, type CurrencyOut } from '../../admin/api/currencies'
 import { fetchUnitCatalog, type UnitCatalogOut } from '../../admin/api/unit_catalog'
 import { fetchProductStock, type StockCurrentOut } from '../../admin/api/stock'
@@ -55,6 +55,11 @@ function formatPrice(value: string, decimals: number): string {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(n)
+}
+
+function formatFactor(value: string): string {
+  const n = parseFloat(value)
+  return isNaN(n) ? value : n.toString()
 }
 
 // ---- Toggle ----
@@ -386,6 +391,117 @@ function UnitModal({
   )
 }
 
+// ---- Price history panel ----
+
+function PriceHistoryPanel({
+  unitName,
+  currencyCode,
+  currencySymbol,
+  decimals,
+  prices,
+  loading,
+  deletingId,
+  onDelete,
+  onAddNew,
+  onClose,
+}: {
+  unitName: string
+  currencyCode: string
+  currencySymbol: string
+  decimals: number
+  prices: PriceOut[]
+  loading: boolean
+  deletingId: string | null
+  onDelete: (priceId: string) => void
+  onAddNew: () => void
+  onClose: () => void
+}) {
+  const todayStr = today()
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+    >
+      <div className="card w-full max-w-lg space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-text-primary">
+            Historial — {unitName} · {currencyCode}
+          </h3>
+          <button type="button" onClick={onClose} className="btn-ghost p-1">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {loading ? (
+          <p className="py-4 text-center text-sm text-text-muted">Cargando…</p>
+        ) : prices.length === 0 ? (
+          <p className="py-4 text-center text-sm text-text-muted">Sin precios cargados.</p>
+        ) : (
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border-subtle">
+                  <th className="pb-2 text-left text-xs font-medium text-text-secondary">Vigente desde</th>
+                  <th className="pb-2 text-right text-xs font-medium text-text-secondary">Precio</th>
+                  <th className="pb-2 pl-3 text-left text-xs font-medium text-text-secondary">Estado</th>
+                  <th className="pb-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {prices.map((p) => {
+                  const badge = p.is_current
+                    ? { label: 'Vigente', cls: 'bg-success-500/15 text-success-500' }
+                    : p.effective_from > todayStr
+                    ? { label: 'Futuro', cls: 'bg-warning-500/15 text-warning-500' }
+                    : { label: 'Histórico', cls: 'bg-bg-elevated text-text-muted' }
+                  return (
+                    <tr key={p.id}>
+                      <td className="py-2 pr-4 tabular-nums text-text-secondary">{p.effective_from}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums text-text-primary">
+                        {currencySymbol} {formatPrice(p.price, decimals)}
+                      </td>
+                      <td className="py-2 pl-3">
+                        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${badge.cls}`}>
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="py-2 text-right">
+                        {p.can_edit ? (
+                          <button
+                            type="button"
+                            className="btn-ghost px-2 py-0.5 text-xs text-danger-500 hover:text-danger-500"
+                            disabled={deletingId === p.id}
+                            onClick={() => onDelete(p.id)}
+                          >
+                            {deletingId === p.id ? '…' : 'Eliminar'}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-text-muted">
+                            {p.sales_count} venta{p.sales_count !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="flex justify-between border-t border-border-subtle pt-3">
+          <button type="button" className="btn-secondary text-sm" onClick={onAddNew}>
+            Cargar precio nuevo
+          </button>
+          <button type="button" className="btn-ghost text-sm" onClick={onClose}>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ---- Price modal ----
 
 interface PriceFormState {
@@ -397,25 +513,33 @@ interface PriceFormState {
 type PriceFormErrors = Partial<Record<keyof PriceFormState, string>>
 
 function PriceModal({
+  mode,
+  existingPrice,
   unitName,
   currencyCode,
   currencySymbol,
+  decimals,
   saving,
   onSave,
   onClose,
 }: {
+  mode: 'new' | 'edit'
+  existingPrice?: PriceOut
   unitName: string
   currencyCode: string
   currencySymbol: string
+  decimals: number
   saving: boolean
   onSave: (data: PriceFormState) => void
   onClose: () => void
 }) {
-  const [form, setForm] = useState<PriceFormState>({
-    price: '',
-    effective_from: today(),
-    notes: '',
-  })
+  const [form, setForm] = useState<PriceFormState>(() => ({
+    price: mode === 'edit' && existingPrice
+      ? parseFloat(existingPrice.price).toFixed(decimals)
+      : '',
+    effective_from: mode === 'edit' && existingPrice ? existingPrice.effective_from : today(),
+    notes: mode === 'edit' && existingPrice ? (existingPrice.notes ?? '') : '',
+  }))
   const [errors, setErrors] = useState<PriceFormErrors>({})
 
   const set = <K extends keyof PriceFormState>(key: K, value: string) => {
@@ -432,6 +556,9 @@ function PriceModal({
     return Object.keys(errs).length === 0
   }
 
+  const title = mode === 'edit' ? 'Editar precio' : 'Nuevo precio'
+  const submitLabel = mode === 'edit' ? 'Guardar cambios' : 'Guardar precio'
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
@@ -439,7 +566,7 @@ function PriceModal({
     >
       <div className="card w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-text-primary">Cambiar precio</h3>
+          <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
           <button type="button" onClick={onClose} className="btn-ghost p-1">
             <X className="h-5 w-5" />
           </button>
@@ -507,7 +634,7 @@ function PriceModal({
             disabled={saving}
             onClick={() => validate() && onSave(form)}
           >
-            {saving ? 'Guardando…' : 'Guardar precio'}
+            {saving ? 'Guardando…' : submitLabel}
           </button>
         </div>
       </div>
@@ -598,7 +725,7 @@ function unitFormFromLocal(u: LocalUnit): UnitFormState {
 function unitFormFromSaved(u: ProductUnitOut): UnitFormState {
   return {
     unit_catalog_id: u.unit_catalog_id,
-    factor_to_base: u.factor_to_base,
+    factor_to_base: formatFactor(u.factor_to_base),
     is_default_sale_unit: u.is_default_sale_unit,
     is_default_purchase_unit: u.is_default_purchase_unit,
     barcode: u.barcode ?? '',
@@ -675,13 +802,28 @@ export function ProductForm() {
   const [currencies, setCurrencies] = useState<CurrencyOut[]>([])
   const [prices, setPrices] = useState<Record<string, PriceOut | null | undefined>>({})
   const [priceModal, setPriceModal] = useState<{
+    mode: 'new' | 'edit'
     unitId: string
     unitName: string
     currencyCode: string
     currencySymbol: string
+    decimals: number
+    existingPrice?: PriceOut
   } | null>(null)
   const [savingPrice, setSavingPrice] = useState(false)
   const [priceError, setPriceError] = useState<string | null>(null)
+  const [deletingPriceKey, setDeletingPriceKey] = useState<string | null>(null)
+  const [confirmDeletePriceKey, setConfirmDeletePriceKey] = useState<string | null>(null)
+  const [historyModal, setHistoryModal] = useState<{
+    unitId: string
+    unitName: string
+    currencyCode: string
+    currencySymbol: string
+    decimals: number
+  } | null>(null)
+  const [historyData, setHistoryData] = useState<PriceOut[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyDeletingId, setHistoryDeletingId] = useState<string | null>(null)
 
   // Load product in edit mode
   useEffect(() => {
@@ -716,11 +858,10 @@ export function ProductForm() {
     }
     setPrices(loading)
 
-    const today = new Date().toISOString().slice(0, 10)
     const tasks = units.flatMap((u) =>
       activeCurrencies.map(async (c) => {
         const history = await fetchPriceHistory(productId, u.id, c.code)
-        const current = history.find((h) => h.effective_from <= today) ?? null
+        const current = history.find((h) => h.is_current) ?? null
         return { key: `${u.id}:${c.code}`, price: current }
       }),
     )
@@ -967,23 +1108,103 @@ export function ProductForm() {
     setSavingPrice(true)
     setPriceError(null)
     try {
-      const created = await createPrice(id, priceModal.unitId, {
-        id: crypto.randomUUID(),
-        currency_code: priceModal.currencyCode,
-        price: parseFloat(data.price).toFixed(4),
-        effective_from: data.effective_from,
-        notes: data.notes.trim() || null,
-      })
-      setPrices((prev) => ({
-        ...prev,
-        [`${priceModal.unitId}:${priceModal.currencyCode}`]: created,
-      }))
+      const key = `${priceModal.unitId}:${priceModal.currencyCode}`
+      if (priceModal.mode === 'edit' && priceModal.existingPrice) {
+        const updated = await updatePrice(priceModal.existingPrice.id, {
+          price: parseFloat(data.price).toFixed(4),
+          effective_from: data.effective_from,
+          notes: data.notes.trim() || null,
+        })
+        setPrices((prev) => ({ ...prev, [key]: updated.is_current ? updated : null }))
+      } else {
+        const created = await createPrice(id, priceModal.unitId, {
+          id: crypto.randomUUID(),
+          currency_code: priceModal.currencyCode,
+          price: parseFloat(data.price).toFixed(4),
+          effective_from: data.effective_from,
+          notes: data.notes.trim() || null,
+        })
+        setPrices((prev) => ({ ...prev, [key]: created.is_current ? created : (prev[key] ?? null) }))
+      }
+      // Refresh history panel if open for the same unit/currency
+      if (historyModal?.unitId === priceModal.unitId && historyModal?.currencyCode === priceModal.currencyCode) {
+        fetchPriceHistory(id, historyModal.unitId, historyModal.currencyCode)
+          .then(setHistoryData)
+          .catch(() => {})
+      }
       setPriceModal(null)
     } catch (err) {
       setPriceError(parseApiError(err))
     } finally {
       setSavingPrice(false)
     }
+  }
+
+  const handlePriceDelete = async (key: string, priceId: string) => {
+    const [unitId, currencyCode] = key.split(':')
+    setDeletingPriceKey(key)
+    setPriceError(null)
+    try {
+      await deletePrice(priceId)
+      const history = await fetchPriceHistory(id!, unitId, currencyCode)
+      const newCurrent = history.find((h) => h.is_current) ?? null
+      setPrices((prev) => ({ ...prev, [key]: newCurrent }))
+      setConfirmDeletePriceKey(null)
+    } catch (err) {
+      setPriceError(parseApiError(err))
+    } finally {
+      setDeletingPriceKey(null)
+    }
+  }
+
+  const openHistoryModal = async (row: {
+    unitId: string
+    unitName: string
+    currencyCode: string
+    currencySymbol: string
+    decimals: number
+  }) => {
+    setHistoryModal(row)
+    setHistoryData([])
+    setHistoryLoading(true)
+    try {
+      const history = await fetchPriceHistory(id!, row.unitId, row.currencyCode)
+      setHistoryData(history)
+    } catch {
+      setHistoryData([])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const handleHistoryDelete = async (priceId: string) => {
+    if (!historyModal) return
+    const key = `${historyModal.unitId}:${historyModal.currencyCode}`
+    setHistoryDeletingId(priceId)
+    setPriceError(null)
+    try {
+      await deletePrice(priceId)
+      const history = await fetchPriceHistory(id!, historyModal.unitId, historyModal.currencyCode)
+      const newCurrent = history.find((h) => h.is_current) ?? null
+      setPrices((prev) => ({ ...prev, [key]: newCurrent }))
+      setHistoryData(history)
+    } catch (err) {
+      setPriceError(parseApiError(err))
+    } finally {
+      setHistoryDeletingId(null)
+    }
+  }
+
+  const handleHistoryAddNew = () => {
+    if (!historyModal) return
+    setPriceModal({
+      mode: 'new',
+      unitId: historyModal.unitId,
+      unitName: historyModal.unitName,
+      currencyCode: historyModal.currencyCode,
+      currencySymbol: historyModal.currencySymbol,
+      decimals: historyModal.decimals,
+    })
   }
 
   const displayUnits = isEdit ? savedUnits : localUnits
@@ -1318,7 +1539,7 @@ export function ProductForm() {
                               : u.unit_catalog_id}
                           </td>
                           <td className="py-2 pr-4 text-right tabular-nums text-text-secondary">
-                            {u.factor_to_base}
+                            {formatFactor(u.factor_to_base)}
                           </td>
                           <td className="py-2 pr-4 text-center">
                             {u.is_default_sale_unit ? (
@@ -1443,40 +1664,115 @@ export function ProductForm() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border-subtle">
-                      {priceRows.map((row) => (
-                        <tr key={`${row.unitId}:${row.currencyCode}`}>
-                          <td className="py-2 pr-4 text-text-primary">{row.unitName}</td>
-                          <td className="py-2 pr-4 text-text-secondary">{row.currencyCode}</td>
-                          <td className="py-2 pr-4 text-right tabular-nums">
-                            {row.priceEntry === undefined ? (
-                              <span className="text-xs text-text-muted">…</span>
-                            ) : row.priceEntry === null ? (
-                              <span className="text-text-muted">—</span>
-                            ) : (
-                              <span className="text-text-primary">
-                                {row.currencySymbol}{' '}
-                                {formatPrice(row.priceEntry.price, row.decimals)}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-2 text-right">
-                            <button
-                              type="button"
-                              className="btn-ghost px-2 py-1 text-xs"
-                              onClick={() =>
-                                setPriceModal({
-                                  unitId: row.unitId,
-                                  unitName: row.unitName,
-                                  currencyCode: row.currencyCode,
-                                  currencySymbol: row.currencySymbol,
-                                })
-                              }
-                            >
-                              Cambiar precio
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {priceRows.map((row) => {
+                        const key = `${row.unitId}:${row.currencyCode}`
+                        const isConfirmingDelete = confirmDeletePriceKey === key
+                        const isDeletingThis = deletingPriceKey === key
+                        return (
+                          <tr key={key}>
+                            <td className="py-2 pr-4 text-text-primary">{row.unitName}</td>
+                            <td className="py-2 pr-4 text-text-secondary">{row.currencyCode}</td>
+                            <td className="py-2 pr-4 text-right tabular-nums">
+                              {row.priceEntry === undefined ? (
+                                <span className="text-xs text-text-muted">…</span>
+                              ) : row.priceEntry === null ? (
+                                <span className="text-text-muted">—</span>
+                              ) : (
+                                <span className="text-text-primary">
+                                  {row.currencySymbol}{' '}
+                                  {formatPrice(row.priceEntry.price, row.decimals)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2 text-right">
+                              {isConfirmingDelete && row.priceEntry ? (
+                                <div className="flex items-center justify-end gap-2">
+                                  <span className="text-xs text-text-secondary">¿Eliminar?</span>
+                                  <button
+                                    type="button"
+                                    className="btn-danger px-2 py-0.5 text-xs"
+                                    disabled={isDeletingThis}
+                                    onClick={() => handlePriceDelete(key, row.priceEntry!.id)}
+                                  >
+                                    {isDeletingThis ? '…' : 'Sí'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-ghost px-2 py-0.5 text-xs"
+                                    onClick={() => setConfirmDeletePriceKey(null)}
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-end gap-1">
+                                  {row.priceEntry?.can_edit && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="btn-ghost px-2 py-1 text-xs"
+                                        onClick={() =>
+                                          setPriceModal({
+                                            mode: 'edit',
+                                            unitId: row.unitId,
+                                            unitName: row.unitName,
+                                            currencyCode: row.currencyCode,
+                                            currencySymbol: row.currencySymbol,
+                                            decimals: row.decimals,
+                                            existingPrice: row.priceEntry!,
+                                          })
+                                        }
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn-ghost px-2 py-1 text-xs text-danger-500 hover:text-danger-500"
+                                        onClick={() => {
+                                          setPriceError(null)
+                                          setConfirmDeletePriceKey(key)
+                                        }}
+                                      >
+                                        Eliminar
+                                      </button>
+                                    </>
+                                  )}
+                                  {row.priceEntry && !row.priceEntry.can_edit && (
+                                    <span className="mr-2 text-xs text-text-muted">
+                                      {row.priceEntry.sales_count} venta{row.priceEntry.sales_count !== 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {isEdit && (
+                                    <button
+                                      type="button"
+                                      className="btn-ghost px-2 py-1 text-xs"
+                                      onClick={() => openHistoryModal(row)}
+                                    >
+                                      Ver historial
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="btn-ghost px-2 py-1 text-xs"
+                                    onClick={() =>
+                                      setPriceModal({
+                                        mode: 'new',
+                                        unitId: row.unitId,
+                                        unitName: row.unitName,
+                                        currencyCode: row.currencyCode,
+                                        currencySymbol: row.currencySymbol,
+                                        decimals: row.decimals,
+                                      })
+                                    }
+                                  >
+                                    {row.priceEntry ? 'Cambiar precio' : 'Cargar precio'}
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1525,11 +1821,32 @@ export function ProductForm() {
         />
       )}
 
+      {historyModal && (
+        <PriceHistoryPanel
+          unitName={historyModal.unitName}
+          currencyCode={historyModal.currencyCode}
+          currencySymbol={historyModal.currencySymbol}
+          decimals={historyModal.decimals}
+          prices={historyData}
+          loading={historyLoading}
+          deletingId={historyDeletingId}
+          onDelete={handleHistoryDelete}
+          onAddNew={handleHistoryAddNew}
+          onClose={() => {
+            setHistoryModal(null)
+            setHistoryData([])
+          }}
+        />
+      )}
+
       {priceModal && (
         <PriceModal
+          mode={priceModal.mode}
+          existingPrice={priceModal.existingPrice}
           unitName={priceModal.unitName}
           currencyCode={priceModal.currencyCode}
           currencySymbol={priceModal.currencySymbol}
+          decimals={priceModal.decimals}
           saving={savingPrice}
           onSave={handlePriceSave}
           onClose={() => {

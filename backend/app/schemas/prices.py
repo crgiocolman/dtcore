@@ -13,6 +13,12 @@ class PriceCreate(BaseModel):
     notes: str | None = None
 
 
+class PriceUpdate(BaseModel):
+    price: Decimal | None = Field(None, ge=0)
+    effective_from: date | None = None
+    notes: str | None = None
+
+
 class PriceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -24,3 +30,11 @@ class PriceOut(BaseModel):
     notes: str | None
     created_at: datetime
     created_by_user_id: UUID | None
+    can_edit: bool = True
+    sales_count: int = 0
+    is_current: bool = False
+
+
+class PriceCanEditOut(BaseModel):
+    can_edit: bool
+    sales_count: int

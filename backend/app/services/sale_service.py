@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -33,6 +33,7 @@ from app.schemas.sales import (
     SaleUpdate,
 )
 from app.exceptions import BusinessRuleError, InvalidStateError, ResourceNotFoundError
+from app.services import settings_service
 from app.services import settings_service, stock_service
 from app.services.stock_service import InsufficientStockError  # noqa: F401 — re-export
 
@@ -826,8 +827,8 @@ async def list_sales(
     *,
     customer_id: UUID | None = None,
     status: SaleStatus | None = None,
-    date_from: datetime | None = None,
-    date_to: datetime | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     warehouse_id: UUID | None = None,
     page: int = 1,
     page_size: int = 20,
@@ -842,10 +843,12 @@ async def list_sales(
         base = base.where(Sale.customer_id == customer_id)
     if status is not None:
         base = base.where(Sale.status == status)
-    if date_from is not None:
-        base = base.where(Sale.sale_date >= date_from)
-    if date_to is not None:
-        base = base.where(Sale.sale_date <= date_to)
+    if date_from is not None or date_to is not None:
+        tz = await settings_service.get_business_timezone(db)
+        if date_from is not None:
+            base = base.where(Sale.sale_date >= datetime.combine(date_from, time.min, tzinfo=tz))
+        if date_to is not None:
+            base = base.where(Sale.sale_date < datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=tz))
     if warehouse_id is not None:
         base = base.where(Sale.warehouse_id == warehouse_id)
 

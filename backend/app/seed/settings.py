@@ -58,6 +58,12 @@ _SETTINGS = [
         "value_type": SettingValueType.DECIMAL,
         "description": "Tasa de IVA por defecto al crear nuevos productos (0, 5 o 10)",
     },
+    {
+        "key": "business_timezone",
+        "value": "America/Asuncion",
+        "value_type": SettingValueType.STRING,
+        "description": "Zona horaria del negocio. Usado para clasificar fechas en cálculos diarios y reportes.",
+    },
 ]
 
 

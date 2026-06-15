@@ -713,3 +713,49 @@ if (parsed.code === 'insufficient_stock') {
   setPaymentError(parsed.message)
 }
 ```
+
+---
+
+## Consulta de precio vigente
+
+La decisión de qué precio es vigente la toma **siempre el backend**. El frontend nunca calcula `effective_from <= today` — solo consume el campo `is_current` o llama al endpoint dedicado.
+
+**Endpoint dedicado (POS, cualquier consumidor que necesite un solo precio):**
+
+```
+GET /api/v1/products/{product_id}/units/{unit_id}/current-price?currency_code=PYG
+→ 200 PriceOut con is_current=true
+→ 404 si no hay precio vigente
+```
+
+```typescript
+// fetchCurrentPrice devuelve PriceOut | null (null en 404, lanza en otros errores)
+const current = await fetchCurrentPrice(productId, unitId, 'PYG')
+setPrice(current ? String(parseFloat(current.price)) : '')
+```
+
+**Historial con flag (ficha de producto, reportes que necesitan todos los precios):**
+
+```
+GET /api/v1/products/{product_id}/units/{unit_id}/prices?currency_code=PYG
+→ list[PriceOut] — cada item incluye is_current: bool
+```
+
+```typescript
+const history = await fetchPriceHistory(productId, unitId, 'PYG')
+const current = history.find((h) => h.is_current) ?? null
+```
+
+**Backend (service layer):**
+
+```python
+from app.services.price_service import get_current_price
+
+# Precio vigente hoy
+price = await get_current_price(db, product_unit_id, "PYG")
+
+# Precio vigente en una fecha histórica (para reportes)
+price = await get_current_price(db, product_unit_id, "PYG", as_of_date=date(2024, 12, 31))
+```
+
+Ver decisión de diseño: "Precio vigente: definición oficial" en `docs/design-decisions.md`.
