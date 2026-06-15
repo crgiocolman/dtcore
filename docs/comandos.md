@@ -80,13 +80,32 @@ Referencia rápida de comandos. Se completa a medida que el proyecto avanza.
 
 ## Tests backend
 
+### Setup (una sola vez)
+
+```bash
+# Crear BD de tests (desde la PC o el contenedor de DB)
+createdb -U admin dtcore_test
+```
+
+### Correr tests
+
 | Comando | Descripción |
 |---|---|
-| `pytest` | Corre todos los tests |
+| `pytest` | Todos los tests (mocks + integración) |
 | `pytest -v` | Verbose |
-| `pytest app/tests/services/test_stock_service.py` | Tests de un archivo específico |
+| `pytest app/tests/services/ app/tests/regressions/` | Solo integración (requiere dtcore_test) |
+| `pytest app/tests/test_*.py` | Solo tests mock (rápidos, sin BD) |
+| `pytest app/tests/regressions/` | Solo regresiones |
+| `pytest app/tests/services/test_stock_service.py` | Archivo específico |
 | `pytest -k "cpp"` | Tests cuyo nombre contiene "cpp" |
+| `pytest -k "concurrent"` | Test de lock concurrente |
 | `pytest --cov=app --cov-report=html` | Coverage report en HTML |
+
+### Variables de entorno
+
+Los tests de integración leen `DATABASE_URL` del entorno. Si no está seteada, `conftest.py`
+aplica el default `postgresql+asyncpg://admin:admin123@localhost:5432/dtcore_test`.
+Para usar otra URL: `DATABASE_URL=... pytest app/tests/services/`
 
 ---
 

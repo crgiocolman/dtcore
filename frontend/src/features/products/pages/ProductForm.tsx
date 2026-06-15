@@ -683,7 +683,7 @@ function fromProduct(p: ProductOut): ProductFormState {
     tax_rate: p.tax_rate,
     tax_included_in_price: p.tax_included_in_price,
     track_stock: p.track_stock,
-    low_stock_threshold: p.low_stock_threshold ?? '',
+    low_stock_threshold: p.low_stock_threshold != null ? String(parseFloat(p.low_stock_threshold)) : '',
   }
 }
 
